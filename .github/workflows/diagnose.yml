@@ -1,0 +1,23 @@
+name: Lakh diagnostics
+# Manual + on change: explains engine failures and outliers on clean_midi (paths and numbers only).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [tools/lakh-diagnose.mjs, .github/workflows/diagnose.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Download and unpack clean_midi outside the checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/lakh-dl" "$RUNNER_TEMP/lakh-scratch"
+          curl -fL --retry 3 -o "$RUNNER_TEMP/lakh-dl/clean_midi.tar.gz" http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz
+          tar -xzf "$RUNNER_TEMP/lakh-dl/clean_midi.tar.gz" -C "$RUNNER_TEMP/lakh-scratch" --no-same-owner --no-same-permissions
+      - run: node tools/lakh-diagnose.mjs "$RUNNER_TEMP/lakh-scratch/clean_midi" | tee "$RUNNER_TEMP/diag.txt"
