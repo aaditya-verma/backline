@@ -8,11 +8,11 @@
 
    Stays in DrumPath (not here): feature → lesson-tag rule table and lesson-pattern similarity. */
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.1.1';
 
 /* ---------- 1. Parser ---------- */
 // Limits protect against corrupt or hostile files (brief §1.8). The pipeline also sets a wall-clock limit.
-export const LIMITS = { maxBytes: 4 * 1024 * 1024, maxTracks: 256, maxEvents: 2_000_000, maxBars: 4000 };
+export const LIMITS = { maxBytes: 4 * 1024 * 1024, maxTracks: 256, maxEvents: 2_000_000, maxBars: 4000, maxMinutes: 20 };
 
 export class MidiError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 
@@ -40,12 +40,14 @@ export function parse(buf, opts = {}) {
     if (id !== 'MTrk') { p = end; t--; continue; }
     const tr = { name: '', notes: [], tempos: [], sigs: [], keys: [], programs: [], chans: {} };
     const open = new Map(); // ch*128+note → [note objects] waiting for note-off
-    let tick = 0, rs = 0;
-    while (p < end) {
+    let tick = 0, rs = 0, skips = 0;
+    try { while (p < end) {
       if (++events > lim.maxEvents) throw new MidiError('too-many-events', `More than ${lim.maxEvents} events`);
       tick += vlq(); if (p >= end) break;
+      if (!rs) while (p < end && !(b[p] & 0x80)) { if (++skips > 64) throw new MidiError('bad-status', 'Data byte without a status'); p++; } // stray data bytes: skip (sloppy writers)
+      if (p >= end) break;
       let st = b[p];
-      if (st & 0x80) { p++; if (st < 0xF0) rs = st; } else { if (!rs) throw new MidiError('bad-status', 'Data byte without a status'); st = rs; }
+      if (st & 0x80) { p++; if (st < 0xF0) rs = st; } else st = rs;
       if (st === 0xFF) {
         const ty = b[p++], l = vlq(); const d = b.subarray(p, Math.min(end, p + l)); p += l;
         if (ty === 0x51 && l >= 3) tr.tempos.push({ tick, us: d[0] << 16 | d[1] << 8 | d[2] });
@@ -66,12 +68,13 @@ export function parse(buf, opts = {}) {
       } else if (hi === 0x80 || hi === 0x90) {
         const q = open.get(ch * 128 + d1); if (q && q.length) { const n = q.shift(); n.dur = tick - n.tick; }
       }
-    }
+    } } catch (e) { if (e.code !== 'truncated' && e.code !== 'bad-status') throw e; tr.damaged = e.code; } // keep what was read
+    if (skips) tr.skipped = skips;
     open.forEach(q => q.forEach(n => { n.dur = Math.max(0, tick - n.tick); })); // never closed: run to track end
     p = end; tracks.push(tr);
   }
   if (!tracks.length) throw new MidiError('no-tracks', 'No tracks in this file');
-  return { fmt, ppq: div, tracks };
+  return { fmt, ppq: div, tracks, damaged: tracks.filter(t => t.damaged || t.skipped).length };
 }
 
 /* ---------- 2. General MIDI (+ Roland TD extras) → DrumPath lanes (pattern-spec §1) ---------- */
@@ -98,12 +101,26 @@ export function tempoMap(tempos, ppq) {
 /** Tempo over a tick span: duration-weighted (one sample per quarter) median, min, max. Same rule as DrumPath. */
 export function tempoStats(tempos, ppq, firstT, lastT) {
   const tsorted = [...tempos].sort((a, b) => a.tick - b.tick);
-  let bpms = []; if (tsorted.length) { for (let i = 0; i < tsorted.length; i++) { const a = Math.max(firstT, tsorted[i].tick), z = Math.min(lastT, i + 1 < tsorted.length ? tsorted[i + 1].tick : lastT);
-    const w = Math.max(z - a, i === tsorted.length - 1 || tsorted.length === 1 ? 1 : 0); if (w > 0) for (let k = 0; k < Math.ceil(w / ppq); k++) bpms.push(60e6 / tsorted[i].us); } }
-  if (!bpms.length) bpms = [tsorted.length ? 60e6 / tsorted[0].us : 120];
-  return { bpmQ: Math.round(median(bpms) * 10) / 10, min: Math.round(Math.min(...bpms)), max: Math.round(Math.max(...bpms)), fromFile: tsorted.length > 0 };
+  // one sample per quarter note of each tempo segment, as {bpm, count} (DrumPath pushed every sample)
+  let runs = []; if (tsorted.length) { for (let i = 0; i < tsorted.length; i++) { const a = Math.max(firstT, tsorted[i].tick), z = Math.min(lastT, i + 1 < tsorted.length ? tsorted[i + 1].tick : lastT);
+    const w = Math.max(z - a, i === tsorted.length - 1 || tsorted.length === 1 ? 1 : 0); if (w > 0) runs.push({ bpm: 60e6 / tsorted[i].us, n: Math.ceil(w / ppq) }); } }
+  if (!runs.length) runs = [{ bpm: tsorted.length ? 60e6 / tsorted[0].us : 120, n: 1 }];
+  const byBpm = [...runs].sort((x, y) => x.bpm - y.bpm), N = byBpm.reduce((a, r) => a + r.n, 0);
+  const at = k => { let c = 0; for (const r of byBpm) { c += r.n; if (k < c) return r.bpm; } return byBpm.at(-1).bpm; };
+  const med = N % 2 ? at(N >> 1) : (at(N / 2 - 1) + at(N / 2)) / 2;
+  return { bpmQ: Math.round(med * 10) / 10, min: Math.round(byBpm[0].bpm), max: Math.round(byBpm.at(-1).bpm), fromFile: tsorted.length > 0 };
 }
 const allOf = (smf, k) => [].concat(...smf.tracks.map(t => t[k]));
+/** Where the music is: split onsets at silences longer than 64 quarters (16 bars of 4/4) and keep the
+ *  segment with the most notes. Notes held past the music (never released) count at most 8 quarters. */
+export function songSpan(notes, ppq) {
+  const on = notes.map(n => n.tick).sort((a, b) => a - b), gap = 64 * ppq;
+  let best = { a: 0, z: 0, n: 0 }, a = 0;
+  for (let i = 1; i <= on.length; i++) if (i === on.length || on[i] - on[i - 1] > gap) { if (i - a > best.n) best = { a, z: i - 1, n: i - a }; a = i; }
+  const start = on[best.a], lastOnset = on[best.z];
+  let end = lastOnset; notes.forEach(n => { if (n.tick >= start && n.tick <= lastOnset) end = Math.max(end, n.tick + Math.min(n.dur, 8 * ppq)); });
+  return { start, lastOnset, end, dropped: on.length - best.n };
+}
 
 /** Find drum notes: channel 10, else tracks named drum/kit/perc (merged). allNotesFallback = DrumPath's old last resort. */
 export function findDrums(smf, opts = {}) {
@@ -276,10 +293,16 @@ export function analyseDrums(smf, opts = {}) {
 /** analyse(bytes, opts) → SongAnalysis (brief §2). Fields arriving in B2 (key, chords, named form, guitar
  *  difficulty, quality) are null here. Never throws for a parsable file without drums: drums → null. */
 export function analyse(buf, opts = {}) {
-  const smf = buf && buf.tracks ? buf : parse(buf, opts);
+  let smf = buf && buf.tracks ? buf : parse(buf, opts);
   const ppq = smf.ppq, warnings = [];
-  const all = allOf(smf, 'notes'); if (!all.length) throw new MidiError('no-notes', 'No notes in this file');
-  let firstT = Infinity, lastT = 0; all.forEach(n => { if (n.tick < firstT) firstT = n.tick; if (n.tick + n.dur > lastT) lastT = n.tick + n.dur; });
+  const all0 = allOf(smf, 'notes'); if (!all0.length) throw new MidiError('no-notes', 'No notes in this file');
+  if (smf.damaged) warnings.push(smf.damaged + ' damaged track(s): kept the part that could be read');
+  const span = songSpan(all0, ppq);
+  if (span.dropped) {
+    warnings.push(span.dropped + ' stray note(s) far from the music ignored');
+    smf = { ...smf, tracks: smf.tracks.map(t => ({ ...t, notes: t.notes.filter(n => n.tick >= span.start && n.tick <= span.lastOnset) })) };
+  }
+  const all = allOf(smf, 'notes'), firstT = span.start, lastT = span.end;
   const tempos = allOf(smf, 'tempos'), sigsAll = allOf(smf, 'sigs').sort((a, b) => a.tick - b.tick);
   const ts = tempoStats(tempos, ppq, firstT, lastT);
   const toMs = tempoMap(tempos, ppq);
@@ -290,12 +313,15 @@ export function analyse(buf, opts = {}) {
   if (!sigsAll.length) warnings.push('no time signature in file: assumed 4/4');
   if (!ts.fromFile) warnings.push('no tempo in file: assumed 120 BPM');
   if (meters.length > 1) warnings.push('meter changes: bars counted in ' + sig0.num + '/' + sig0.den);
+  const durS = (toMs(lastT) - toMs(firstT)) / 1000, maxMin = (opts.limits && opts.limits.maxMinutes) || LIMITS.maxMinutes;
+  if (durS > maxMin * 60) throw new MidiError('too-long', `${Math.round(durS / 60)} minutes of music (limit ${maxMin}): timing in the file is probably broken`);
 
   let drums = null;
   try { drums = analyseDrums(smf, opts); } catch (e) { if (e.code !== 'no-drums') throw e; warnings.push(e.message); }
 
   /* song form from drum sections, covering every bar of the song */
-  const barQ = sig0.num * 4 / sig0.den, songBars = Math.max(1, Math.ceil(lastT / ppq / barQ - 1e-6));
+  const barQ = sig0.num * 4 / sig0.den, startBar = Math.floor(firstT / ppq / barQ + 1e-6);
+  const songBars = Math.max(1, Math.ceil(lastT / ppq / barQ - 1e-6) - startBar);
   const maxBars = (opts.limits && opts.limits.maxBars) || LIMITS.maxBars;
   if (!(songBars <= maxBars)) throw new MidiError('too-long', `${songBars} bars (limit ${maxBars})`);
   const form = [], sections = {};
@@ -313,7 +339,7 @@ export function analyse(buf, opts = {}) {
     // empty bars: a run of 2+ is a break; a single one joins the section before it
     for (let i = 0; i < per.length; i++) if (per[i] === null) { let j = i; while (j < per.length && per[j] === null) j++;
       const fillWith = j - i >= 2 ? '·' : (per[i - 1] || per[j] || '·'); for (let k = i; k < j; k++) per[k] = fillWith; i = j - 1; }
-    const lead = d.firstBar, tail = Math.max(0, songBars - lead - d.nBars);
+    const lead = Math.max(0, d.firstBar - startBar), tail = Math.max(0, songBars - lead - d.nBars);
     const seq = [...Array(lead).fill('·'), ...per, ...Array(tail).fill('·')];
     seq.forEach(s => { const f = form[form.length - 1]; if (f && f.sec === s) f.bars++; else form.push({ sec: s, bars: 1 }); });
     // per letter: groove = its cluster's prototype bar, fill = the commonest fill bar inside that letter's sections
@@ -332,7 +358,7 @@ export function analyse(buf, opts = {}) {
     bpmRange: ts.max - ts.min > 2 ? [ts.min, ts.max] : null,
     bpmSource: ts.fromFile ? 'file' : 'assumed',
     meter: sig0.num + '/' + sig0.den, meterChanges: meters.length > 1, meters,
-    durS: Math.round((toMs(lastT) - toMs(firstT)) / 100) / 10,
+    durS: Math.round(durS * 10) / 10,
     bars: songBars,
     feel: df ? (df.halfTime ? 'half-time' : df.shuffle ? 'shuffle' : df.feel) : null,
     swing: df ? df.swing : null,
@@ -358,5 +384,5 @@ export function writeSMF(notes, o = {}) {
   return new Uint8Array([0x4D, 0x54, 0x68, 0x64, ...u32(6), 0, 0, 0, 1, ppq >> 8, ppq & 255, 0x4D, 0x54, 0x72, 0x6B, ...u32(body.length), ...body]);
 }
 
-const Backline = { VERSION, LIMITS, MidiError, parse, analyse, analyseDrums, findDrums, tempoMap, tempoStats, median, writeSMF, GM, TOM_NOTES, LANES };
+const Backline = { VERSION, LIMITS, MidiError, parse, analyse, analyseDrums, findDrums, songSpan, tempoMap, tempoStats, median, writeSMF, GM, TOM_NOTES, LANES };
 export default Backline;

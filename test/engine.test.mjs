@@ -134,3 +134,37 @@ test('output is deterministic and has the documented shape', () => {
     assert.ok(k in a, 'missing ' + k);
   assert.equal(a.engine, B.VERSION);
 });
+
+test('stray notes far from the music are ignored (Lakh: 1,200 files)', () => {
+  const ev = [{ q: 0, note: 36 }, ...drumBars(repeat(ROCK, 8), { startBar: 1000 })]; // a lone kick 4,000 beats early
+  const a = analyse(song({ tracks: [{ events: ev }] }));
+  assert.equal(a.bars, 8); assert.deepEqual(a.form, [{ sec: 'A', bars: 8 }]);
+  assert.ok(a.warnings.some(w => /stray/.test(w)));
+  assert.ok(a.durS < 30);
+});
+
+test('a note that is never released does not stretch the song', () => {
+  const a = analyse(song({ tracks: [{ events: drumBars(repeat(ROCK, 8)) }, { name: 'Pad', ch: 0, events: [{ q: 0, note: 60, len: 100000 }] }] }));
+  assert.ok(a.bars <= 10, 'bars ' + a.bars);
+});
+
+test('huge tempo spans: no stack overflow, same median rule', () => {
+  const ts = B.tempoStats([{ tick: 0, us: 500000 }, { tick: 480 * 3e6, us: 400000 }], 480, 0, 480 * 4e6);
+  assert.equal(ts.bpmQ, 120); assert.equal(ts.min, 120); assert.equal(ts.max, 150);
+});
+
+test('timing that implies hours of music is rejected as broken', () => {
+  const ev = []; for (let i = 0; i < 3000; i++) ev.push({ q: i * 4, note: 36 }); // one kick per bar for 3,000 bars at 120 BPM ≈ 100 min
+  assert.throws(() => analyse(song({ tracks: [{ events: ev }] })), e => e.code === 'too-long');
+});
+
+test('stray data bytes are skipped and the rest of the track is kept', () => {
+  const good = song({ tracks: [{ events: drumBars(repeat(ROCK, 4)) }] });
+  // find the drum track (2nd MTrk) and put a stray data byte 0x05 right after its first delta-time (no running status yet)
+  const s = String.fromCharCode(...good); const i = s.indexOf('MTrk', s.indexOf('MTrk') + 4) + 8;
+  const bad = new Uint8Array([...good.slice(0, i + 1), 0x05, ...good.slice(i + 1)]);
+  const len = (bad[i - 4] << 24 | bad[i - 3] << 16 | bad[i - 2] << 8 | bad[i - 1]) + 1;
+  bad[i - 4] = len >>> 24 & 255; bad[i - 3] = len >>> 16 & 255; bad[i - 2] = len >>> 8 & 255; bad[i - 1] = len & 255;
+  const a = analyse(bad);
+  assert.deepEqual(a.drums.patterns.main.v, ROCK);
+});
