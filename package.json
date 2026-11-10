@@ -1,0 +1,11 @@
+{
+  "name": "backline",
+  "private": true,
+  "type": "module",
+  "description": "Lakh song engine + jam app. No dependencies.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build:engine": "node tools/build-engine.mjs"
+  },
+  "license": "UNLICENSED"
+}
