@@ -1,0 +1,45 @@
+name: Deploy Pages
+# Site = main (app, engine, docs) + data/ from the `data` branch (if it exists).
+on:
+  push:
+    branches: [main, data]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, path: site-main }
+      - name: Fetch data branch (optional)
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" data >/dev/null; then
+            git clone --depth 1 --branch data "https://github.com/${{ github.repository }}" site-data
+          fi
+      - name: Assemble site
+        run: |
+          mkdir site
+          rsync -a --exclude .git --exclude .github --exclude pipeline site-main/ site/
+          if [ -d site-data/data ]; then rsync -a site-data/data/ site/data/; fi
+          # Safety net: never publish raw MIDI/archives
+          if find site -type f \( -iname '*.mid' -o -iname '*.midi' -o -iname '*.kar' -o -iname '*.gz' -o -iname '*.h5' \) | grep -q .; then
+            echo "Raw source file found in site — refusing to deploy"; exit 1
+          fi
+          touch site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - id: deploy
+        uses: actions/deploy-pages@v4

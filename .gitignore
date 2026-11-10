@@ -1,0 +1,16 @@
+# Raw source files must never be committed (brief §1, §3a)
+*.mid
+*.midi
+*.MID
+*.MIDI
+*.kar
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.h5
+*.hdf5
+scratch/
+lakh-scratch/
+node_modules/
+.DS_Store

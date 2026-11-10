@@ -1,0 +1,62 @@
+name: B0 pipeline probe
+# Downloads clean_midi from the Lakh mirror, unpacks it in a scratch dir
+# outside the checkout, and reports sizes/counts. Uploads only probe.json.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: clean_midi archive URL
+        default: http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz
+  push:
+    branches: [main]
+    paths: [pipeline/probe.mjs, .github/workflows/probe.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      URL: ${{ inputs.url || 'http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz' }}
+      DL: ${{ runner.temp }}/lakh-dl
+      SCRATCH: ${{ runner.temp }}/lakh-scratch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Disk before
+        run: df -h "$RUNNER_TEMP" /
+      - name: Download from mirror
+        id: dl
+        run: |
+          mkdir -p "$DL"
+          start=$(date +%s)
+          set +e
+          curl -L --fail --retry 3 --retry-delay 10 --connect-timeout 30 --max-time 3600 \
+               -o "$DL/clean_midi.tar.gz" -w 'http=%{http_code} bytes=%{size_download} speed=%{speed_download}\n' "$URL"
+          rc=$?
+          set -e
+          echo "sec=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ $rc -ne 0 ]; then
+            echo "### Probe: download FAILED (curl exit $rc) from \`$URL\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          ls -l "$DL"
+          file "$DL/clean_midi.tar.gz"
+      - name: Unpack and count
+        run: |
+          node pipeline/probe.mjs --src "$DL/clean_midi.tar.gz" --scratch "$SCRATCH" \
+               --download-sec "${{ steps.dl.outputs.sec }}" --where actions --out "$RUNNER_TEMP/probe.json"
+          {
+            echo "### Backline B0 probe (Actions, mirror)"
+            echo '```json'; cat "$RUNNER_TEMP/probe.json"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Disk after
+        run: df -h "$RUNNER_TEMP" /
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe
+          path: ${{ runner.temp }}/probe.json
