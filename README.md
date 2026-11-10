@@ -57,7 +57,7 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 | Analysed | 17,189 (99.6%) |
 | Failed | 67: timing implies > 20 min of music 44 · not MIDI 13 · no notes 9 · SMPTE timing 1 |
 | With a usable drum part | 15,661 (91.1%): channel 10 15,634 · track name 27 |
-| Meter | 4/4 15,979 · 3/4 311 · 2/4 222 · 6/8 179 · 12/8 178 · other 120; meter changes in 1,903 |
+| Meter | 4/4 15,979 · 3/4 311 · 2/4 222 · 6/8 179 · 12/8 178 · 6/4 59 · 2/2 55 · 1/4 34 · other 172; meter changes in 1,903 |
 | Feel | straight 9,926 · shuffle 4,203 · half-time 1,009 · light swing 277 · triplet 246 |
 | BPM (p10 / median / p90) | 73 / 115 / 150 |
 | Length (p10 / median / p90) | 143 / 226 / 319 s |
