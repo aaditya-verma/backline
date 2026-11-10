@@ -24,5 +24,15 @@ Song data is derived from the **Lakh MIDI Dataset v0.1** by Colin Raffel, licens
 
 The MIDI files are fan-made transcriptions and may be wrong. Changes made: only derived features are published (see above).
 
-## Probe results (B0)
-_Pending._
+## Probe results (B0, 11 Nov 2026 — GitHub Actions, Lakh mirror)
+| | |
+|---|---|
+| Source | `http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz` (HTTP 200) |
+| Download | 20 s (~11 MB/s) |
+| Archive | 223.4 MB |
+| Unpacked | 777.8 MB, unpack 4.8 s |
+| Files | 17,259 (17,256 MIDI; 17,243 with a valid `MThd` header; 3 other) |
+| Artists | 2,197 folders (median 2 files each, max 783) |
+| Runner | 4 CPU, 15.6 GB RAM, 84.8 GB free after unpack |
+
+Verdict: Actions + mirror works; the laptop route is a fallback only.
