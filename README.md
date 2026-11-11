@@ -2,7 +2,7 @@
 
 Song engine + standalone jam app built on the Lakh MIDI Dataset. Search a song, see its form, chords and drum grooves, and play a synthesised backing track (drums, bass, chord pad) with loop, tempo and transpose.
 
-Live: https://aaditya-verma.github.io/backline/ · Status: **B2 done** (engine 0.2.0: chords, key, Roman numerals, named form, guitar difficulty, quality; hand-checked on 15 songs). Next: B3 song index.
+Live: https://aaditya-verma.github.io/backline/ · Status: **B4 built**: the app is live (search, song sheet, backing-track player, offline). B3 song index: 10,226 songs in `data/v1` on the `data` branch. Next: B5 (jam mode, setlists, own MIDI file).
 
 | Folder | What |
 |---|---|
@@ -86,3 +86,14 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 | Guitar level (p10 / median / p90) | 5 / 7 / 10 (heuristic; fan files use many passing chords, so it reads high) |
 
 **Still to check:** chords right in ≥ 80% of bars and key right in ≥ 90% of songs on the owner's 15-song hand-check list; section names against the owner's 20-song spot-check (B3). The grade spread (89% A) is generous and will be tightened in B3 once versions of the same song can be compared.
+
+## App (B4)
+`index.html` + `app/` (plain ES modules, no build step) + `sw.js`.
+- **Search** the index by title or artist; filters for BPM, key, meter, feel, quality (A+B by default), drum and guitar level; favourites and recent songs.
+- **Song sheet**: key, BPM (≈ when versions disagree), meter, feel, quality, difficulty; version info; form strip (tap = jump and loop); chord chart in rows of 4 bars, chord names or Roman numerals, transpose ±6 with a capo hint; drum grooves and fills as lane grids; Guitar / Drums / Both views.
+- **Player** (Web Audio, all synthesised): drums from each section's groove and fill, bass on the chord roots, a chord pad, click; mute each part; tempo 50–120%; loop a section; count-in; the current bar is highlighted.
+- **Offline**: the service worker keeps the app, the song list and every song you've opened.
+- **Deep links**: `#song=<id>&sec=B&tempo=80&transpose=-2`.
+
+**Checks:** `node test/ui/smoke.mjs <url>` (search → sheet → transpose → loop → play → deep link → credits, no page errors) and `node test/ui/layout.mjs <url>` (4 screens × 8 sizes × 100/125% text: nothing wider than the screen, nothing spilling, the player never covers the page end). Both need Playwright + Chrome (`PW`, `CHROME` env vars point at them). 12 Nov 2026: all pass, 0 layout problems.
+

@@ -2,20 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Backline</title>
-<style>
-  body{font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#222}
-  h1{margin-bottom:.2rem} small{color:#666}
-</style>
+<meta name="description" content="Song reference and backing tracks for jamming: chords, form and drum grooves for 10,000 songs.">
+<meta name="theme-color" content="#14171c">
+<link rel="manifest" href="app/manifest.webmanifest">
+<link rel="icon" href="app/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app/app.css">
 </head>
 <body>
-<h1>Backline</h1>
-<p><small>Song reference and backing tracks for jamming. Under construction (B0).</small></p>
-<h2>Credits</h2>
-<p>Song data is derived from the <a href="https://colinraffel.com/projects/lmd/">Lakh MIDI Dataset v0.1</a> by Colin Raffel,
-licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
-C. Raffel, <em>Learning-Based Methods for Comparing Sequences, with Applications to Audio-to-MIDI Alignment and Matching</em>, PhD thesis, Columbia University, 2016.
-The transcriptions are fan-made and may be wrong.</p>
+<header><a class="brand" href="#">Backline</a><span class="where" id="where"></span><span class="net" id="net"></span><a href="#credits" class="btn ghost" aria-label="Credits">ⓘ</a></header>
+<main><div class="empty">Loading…</div></main>
+<footer>Data: Lakh MIDI Dataset (C. Raffel, CC BY 4.0), fan-made transcriptions that may be wrong. <a href="#credits">Credits</a></footer>
+<div id="player" hidden>
+  <div class="r1"><button class="play pri" aria-label="Play">▶</button><div class="pos" id="ppos"><b>Ready</b><span>Tap play, or pick a section to loop</span></div>
+    <button id="loopinfo" class="ghost">Whole song</button></div>
+  <div class="r2">
+    <div class="tempo"><input id="tempo" type="range" min="50" max="120" step="5" value="100" aria-label="Tempo"><span id="tempoval">100%</span></div>
+    <button data-mute="drums" aria-pressed="true">Drums</button><button data-mute="bass" aria-pressed="true">Bass</button><button data-mute="chords" aria-pressed="true">Chords</button><button data-mute="click" aria-pressed="false">Click</button><button id="countin">Count-in</button>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+<noscript>Backline needs JavaScript.</noscript>
+<script type="module" src="app/app.js"></script>
 </body>
 </html>
