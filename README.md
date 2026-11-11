@@ -2,7 +2,7 @@
 
 Song engine + standalone jam app built on the Lakh MIDI Dataset. Search a song, see its form, chords and drum grooves, and play a synthesised backing track (drums, bass, chord pad) with loop, tempo and transpose.
 
-Live: https://aaditya-verma.github.io/backline/ · Status: **B1 done** (engine 0.1.1: parse, drums, grid, sections). Next: B2 harmony, key and form.
+Live: https://aaditya-verma.github.io/backline/ · Status: **B2 built** (engine 0.2.0: chords, key, Roman numerals, named form, guitar difficulty, quality). Chord hand-check on 15 known songs pending. Next: B3 song index.
 
 | Folder | What |
 |---|---|
@@ -62,3 +62,24 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 | BPM (p10 / median / p90) | 73 / 115 / 150 |
 | Length (p10 / median / p90) | 143 / 226 / 319 s |
 | Warnings | stray notes ignored 1,938 · no drum track 1,379 · no time signature 740 · damaged tracks kept partly 54 |
+
+## Engine checks (B2, 11 Nov 2026 — engine 0.2.0)
+**What B2 adds:** a chord every half-bar (every bar in 3/4, 5/4, 7/8) from 10 templates (major, minor, 7, maj7, m7, sus2, sus4, dim, aug, power chord) plus slash bass; the key (key-signature event when it fits the notes, otherwise Krumhansl–Kessler profiles, with the tonic chord settling major vs relative minor); Roman numerals; a named form (Intro, Verse?, Chorus?, Pre-chorus?, Bridge?, Outro, Break); a guitar difficulty with a capo hint (heuristic); and a quality grade. Every guessed field is marked (`?` on names, `chords.guessed`, `guitar.heuristic`).
+
+**Unit tests:** 41 / 41 pass (16 new for B2, all on generated files with known answers). **Groove calibration:** still identical to DrumPath on all 1,150 files.
+
+**Lakh run** (all 17,256 clean_midi files, numbers only; median 7.5 ms per file):
+
+| | |
+|---|---|
+| Key found | 17,179 songs (99.9% of analysed): major 11,978 · minor 5,201 |
+| Key from | profile 13,836 · key-signature event 3,343 |
+| Commonest keys | C 2,086 · G 1,820 · D 1,486 · A 1,389 · E 1,172 · F 1,122 · Em 991 · Am 917 |
+| Chord template fit (p10 / median / p90) | 0.8 / 0.9 / 0.9 |
+| Half-bars with a chord (p10 / median) | 80% / 100% |
+| Quality grade | A 15,302 · B 348 · C 1,539 |
+| Sections per song (p10 / median / p90) | 8 / 12 / 22; 80% of bars sit in repeated sections (median) |
+| Section names | Chorus? 72,857 · Verse? 58,299 · Bridge? 13,312 · Pre-chorus? 11,768 · Outro 7,893 · Break 7,460 · Intro 7,239 · letter only 60,964 |
+| Capo hint given | 7,832 songs |
+
+**Still to check:** chords right in ≥ 80% of bars and key right in ≥ 90% of songs on the owner's 15-song hand-check list; section names against the owner's 20-song spot-check (B3). The grade spread (89% A) is generous and will be tightened in B3 once versions of the same song can be compared.
