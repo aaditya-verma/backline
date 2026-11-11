@@ -2,13 +2,14 @@
    ES module, no dependencies. A plain-script copy (window.Backline / module.exports) is built by
    tools/build-engine.mjs into engine/dist/ for DrumPath (vendor/backline-engine.<ver>.js).
 
-   B1 (this version): safe parser, drum lanes, grid/swing, bar clustering, fills, sections, drum features.
+   B1: safe parser, drum lanes, grid/swing, bar clustering, fills, sections, drum features.
+   B2 (0.2.0): chords per half-bar, key (key signature or Krumhansl–Kessler), Roman numerals, named form, guitar difficulty, quality grade.
    The drum analysis is moved from DrumPath src/js/midi-analyse.js 1.1 and must give identical results
-   (test/equivalence.test.mjs, tools/calibrate-groove.mjs). Harmony, key and named form arrive in B2.
+   (test/equivalence.test.mjs, tools/calibrate-groove.mjs).
 
    Stays in DrumPath (not here): feature → lesson-tag rule table and lesson-pattern similarity. */
 
-export const VERSION = '0.1.1';
+export const VERSION = '0.2.0';
 
 /* ---------- 1. Parser ---------- */
 // Limits protect against corrupt or hostile files (brief §1.8). The pipeline also sets a wall-clock limit.
@@ -285,13 +286,222 @@ export function analyseDrums(smf, opts = {}) {
     sections: sections.map(s => ({ name: s.name, start: s.start + 1, bars: s.bars, fills: s.fills.map(i => i + 1) })),
     // bar-level detail for the song form (engine only)
     detail: { firstBar: Math.round(barStart / barQ), nBars, label: lab, fills, mainC, second, names, sub, spb, barQ, beatQ, compound, sig0,
-      clusterSize: clusters.map(c => c.bars.length), clusterProto: clusters.map(c => c.proto), toRaw, density: bo.map(o => o.size), crash: bars.map(b => laneHits(b, 'C')) },
+      clusterSize: clusters.map(c => c.bars.length), clusterProto: clusters.map(c => c.proto), toRaw, density: bo.map(o => o.size), crash: bars.map(b => laneHits(b, 'C')),
+      total: notes.length, mapped: ev.length, onGrid: offsets.length ? offsets.filter(o => Math.abs(o) <= 0.2).length / offsets.length : 0 },
   };
 }
 
-/* ---------- 4. Song analysis (B1: tempo, meter, drums, drum-based form) ---------- */
-/** analyse(bytes, opts) → SongAnalysis (brief §2). Fields arriving in B2 (key, chords, named form, guitar
- *  difficulty, quality) are null here. Never throws for a parsable file without drums: drums → null. */
+/* ---------- 4. Harmony (B2): chords per half-bar, key, Roman numerals, guitar difficulty ---------- */
+const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+/** Chord templates: [suffix, intervals, prior]. The prior breaks near-ties toward common chords. */
+export const CHORD_TYPES = [['', [0, 4, 7], 1], ['m', [0, 3, 7], 1], ['7', [0, 4, 7, 10], 0.97], ['maj7', [0, 4, 7, 11], 0.96], ['m7', [0, 3, 7, 10], 0.97],
+  ['sus2', [0, 2, 7], 0.93], ['sus4', [0, 5, 7], 0.94], ['dim', [0, 3, 6], 0.92], ['aug', [0, 4, 8], 0.9], ['5', [0, 7], 0.95]];
+// Krumhansl–Kessler key profiles (probe-tone ratings), C major / C minor
+const KK_MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const KK_MIN = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+const MINORISH = new Set(['m', 'm7', 'dim']);
+// open-position chord shapes on a standard-tuned guitar (pitch class of root + suffix); '5' power chords count as easy anywhere
+const OPEN_SHAPES = new Set(['0:', '2:', '4:', '7:', '9:', '9:m', '2:m', '4:m', '9:7', '11:7', '0:7', '2:7', '4:7', '7:7', '9:m7', '2:m7', '4:m7',
+  '0:maj7', '2:maj7', '5:maj7', '9:maj7', '9:sus2', '9:sus4', '2:sus2', '2:sus4', '4:sus4']);
+const flatKey = (tonic, minor) => (minor ? [2, 7, 0, 5, 10, 3] : [5, 10, 3, 8, 1]).includes(tonic);
+const pearson = (a, b) => { const n = a.length, ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n; let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) { num += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; } return da && db ? num / Math.sqrt(da * db) : 0; };
+export const chordName = (root, suffix, bass, flats) => { const N = flats ? FLAT : SHARP; return N[root] + suffix + (bass != null && bass !== root ? '/' + N[bass] : ''); };
+/** Roman numeral of a chord root/suffix relative to a key (tonic pitch class + mode). Upper case = major-ish, lower = minor-ish. */
+export function roman(root, suffix, tonic, minor) {
+  const deg = (root - tonic + 12) % 12;
+  const base = (minor ? ['I', '♭II', 'II', 'III', '♯III', 'IV', '♯IV', 'V', 'VI', '♯VI', 'VII', '♯VII'] : ['I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV', 'V', '♭VI', 'VI', '♭VII', 'VII'])[deg];
+  const low = MINORISH.has(suffix), r = low ? base.toLowerCase() : base;
+  const tail = { '': '', m: '', '7': '7', maj7: 'maj7', m7: '7', sus2: 'sus2', sus4: 'sus4', dim: '°', aug: '+', '5': '5' }[suffix];
+  return r + tail;
+}
+
+/** Pitched notes = everything that isn't the drum part. Lead-like tracks (monophonic, high) count less toward chords. */
+function pitchedNotes(smf, drumSrc) {
+  const out = [];
+  smf.tracks.forEach(t => {
+    const usedAsDrums = drumSrc === 'track name' && /drum|kit|perc/i.test(t.name);
+    const ns = t.notes.filter(n => n.ch !== 9 && !usedAsDrums && n.dur > 0); if (!ns.length) return;
+    const sorted = [...ns].sort((a, b) => a.tick - b.tick); let over = 0, endMax = -1;
+    sorted.forEach(n => { if (n.tick < endMax - 1) over++; endMax = Math.max(endMax, n.tick + n.dur); });
+    const mono = over / sorted.length < 0.1, high = median(sorted.map(n => n.note)) >= 60;
+    const w = mono && high ? 0.4 : 1;
+    sorted.forEach(n => out.push({ tick: n.tick, dur: n.dur, note: n.note, vel: n.vel, w }));
+  });
+  return out;
+}
+
+/** analyseHarmony(smf, grid) → chords per segment, chords per bar, key, fit. grid: {ppq, barTicks, startBar, nBars, segs, keySigs, drumSrc} */
+export function analyseHarmony(smf, g) {
+  const notes = pitchedNotes(smf, g.drumSrc);
+  const segT = g.barTicks / g.segs, nSeg = g.nBars * g.segs, t0 = g.startBar * g.barTicks;
+  const chroma = Array.from({ length: nSeg }, () => new Float64Array(12)), bassW = Array.from({ length: nSeg }, () => new Float64Array(12));
+  const lowest = new Int16Array(nSeg).fill(999), total = new Float64Array(12);
+  for (const n of notes) {
+    const a = n.tick, z = n.tick + Math.min(n.dur, 8 * g.barTicks), pc = n.note % 12, v = n.vel / 127;
+    const s0 = Math.max(0, Math.floor((a - t0) / segT)), s1 = Math.min(nSeg - 1, Math.floor((z - 1 - t0) / segT));
+    const bf = n.note < 48 ? 1 : n.note < 55 ? 0.5 : n.note < 60 ? 0.15 : 0;
+    for (let s = s0; s <= s1; s++) {
+      const ov = Math.min(z, t0 + (s + 1) * segT) - Math.max(a, t0 + s * segT); if (ov <= 0) continue;
+      const w = ov / segT * v; chroma[s][pc] += w * n.w; total[pc] += w; if (bf) bassW[s][pc] += w * bf;
+      if (ov >= segT / 8 && n.note < lowest[s]) lowest[s] = n.note;
+    }
+  }
+  /* emission: best template score per (root, type) per segment */
+  const K = 12 * CHORD_TYPES.length, NC = K; // index K = no chord
+  const energy = chroma.map(c => c.reduce((s, x) => s + x, 0));
+  const eMed = median(energy.filter(e => e > 0)) || 1;
+  const tmpl = []; for (let r = 0; r < 12; r++) CHORD_TYPES.forEach(([suf, iv, prior], ti) => { const v = new Float64Array(12); iv.forEach(i => { v[(r + i) % 12] = 1; }); tmpl.push({ r, suf, ti, v, norm: Math.sqrt(iv.length), prior }); });
+  const em = [], bassPc = [];
+  for (let s = 0; s < nSeg; s++) {
+    const c = chroma[s], e = energy[s], row = new Float64Array(K + 1);
+    const bw = bassW[s], bs = bw.reduce((x, y) => x + y, 0); let bp = -1;
+    if (bs > 0) { let m = 0; for (let i = 0; i < 12; i++) if (bw[i] > m) { m = bw[i]; bp = i; } } else if (lowest[s] < 999) bp = lowest[s] % 12;
+    bassPc.push(bp);
+    const srt = Array.from(c).sort((x, y) => y - x);
+    if (e < 0.12 * eMed || srt[1] < 0.2 * srt[0]) { row[NC] = 1; em.push(row); continue; } // silence, or a single note isn't a chord
+    const cn = Math.sqrt(c.reduce((x, y) => x + y * y, 0)) || 1;
+    for (let k = 0; k < K; k++) { const t = tmpl[k]; let dot = 0; for (let i = 0; i < 12; i++) dot += c[i] * t.v[i];
+      row[k] = dot / (cn * t.norm) * t.prior + (bp === t.r ? 0.04 : 0); }
+    row[NC] = 0.45; em.push(row);
+  }
+  /* smoothing: Viterbi with a change penalty, cheaper at bar starts than mid-bar */
+  const pen = s => (s % g.segs === 0 ? 0.1 : 0.18);
+  let prev = em[0] ? Float64Array.from(em[0]) : new Float64Array(K + 1); const from = [];
+  for (let s = 1; s < nSeg; s++) {
+    let bi = 0; for (let k = 1; k <= K; k++) if (prev[k] > prev[bi]) bi = k;
+    const cur = new Float64Array(K + 1), fr = new Int16Array(K + 1), p = pen(s);
+    for (let k = 0; k <= K; k++) { const stay = prev[k], jump = prev[bi] - p; if (stay >= jump) { cur[k] = stay + em[s][k]; fr[k] = k; } else { cur[k] = jump + em[s][k]; fr[k] = bi; } }
+    from.push(fr); prev = cur;
+  }
+  const path = new Int16Array(nSeg); if (nSeg) { let bi = 0; for (let k = 1; k <= K; k++) if (prev[k] > prev[bi]) bi = k; path[nSeg - 1] = bi; for (let s = nSeg - 1; s > 0; s--) path[s - 1] = from[s - 1][path[s]]; }
+  /* key: Krumhansl–Kessler over the whole song's pitch classes, checked against key-signature events */
+  const scores = []; for (let t = 0; t < 12; t++) { const rot = i => total[(i + t) % 12]; const v = Array.from({ length: 12 }, (_, i) => rot(i));
+    scores.push({ tonic: t, minor: false, r: pearson(v, KK_MAJ) }, { tonic: t, minor: true, r: pearson(v, KK_MIN) }); }
+  scores.sort((a, b) => b.r - a.r);
+  const chordDur = {}; path.forEach(k => { if (k < K) { const t = tmpl[k], key = t.r + (MINORISH.has(t.suf) ? 'm' : 'M'); chordDur[key] = (chordDur[key] || 0) + 1; } });
+  const firstC = [...path].find(k => k < K), lastC = [...path].reverse().find(k => k < K);
+  const tonicWeight = (tonic, minor) => { const key = tonic + (minor ? 'm' : 'M'); let w = chordDur[key] || 0; [firstC, lastC].forEach(k => { if (k != null && tmpl[k].r === tonic && MINORISH.has(tmpl[k].suf) === minor) w += 4; }); return w; };
+  const relOf = k => k.minor ? { tonic: (k.tonic + 3) % 12, minor: false } : { tonic: (k.tonic + 9) % 12, minor: true };
+  const rank = k => scores.findIndex(x => x.tonic === k.tonic && x.minor === k.minor), rOf = k => scores[rank(k)].r;
+  let best = scores[0], source = 'profile';
+  const sig = (g.keySigs || []).filter(k => k.tick <= t0 + g.barTicks).pop() || (g.keySigs || [])[0];
+  if (sig) {
+    const sk = { tonic: ((sig.sf * 7) % 12 + 12) % 12, minor: false }, alt = relOf(sk);
+    const sigBest = rOf(sk) >= rOf(alt) ? sk : alt, isDefault = sig.sf === 0;
+    if (rank(sigBest) <= (isDefault ? 1 : 3) && scores[0].r - rOf(sigBest) <= (isDefault ? 0.03 : 0.08)) { best = sigBest; source = 'key signature'; }
+  }
+  // major vs relative minor: let the tonic chord decide when the profile can't tell them apart
+  const rel = relOf(best); if (Math.abs(rOf(best) - rOf(rel)) < 0.08 && tonicWeight(rel.tonic, rel.minor) > tonicWeight(best.tonic, best.minor)) best = { ...rel };
+  const r1 = rOf(best), r2s = scores.find(x => !(x.tonic === best.tonic && x.minor === best.minor)).r;
+  const agree = source === 'key signature' ? 0.2 : (sig ? -0.1 : 0);
+  const keyConf = Math.round(Math.max(0.05, Math.min(0.99, 0.45 + (r1 - r2s) * 3 + agree + (r1 > 0.8 ? 0.15 : 0))) * 100) / 100;
+  const flats = flatKey(best.tonic, best.minor);
+  /* output: chord per segment and per bar */
+  let fitSum = 0, fitN = 0;
+  const segs = Array.from(path, (k, s) => {
+    if (k === NC) return null; const t = tmpl[k]; fitSum += em[s][k] - (bassPc[s] === t.r ? 0.04 : 0); fitN++;
+    const bp = bassPc[s], tones = CHORD_TYPES[t.ti][1].map(i => (t.r + i) % 12);
+    const slash = bp >= 0 && bp !== t.r && tones.includes(bp) ? bp : null;
+    return { root: t.r, suf: t.suf, bass: slash, name: chordName(t.r, t.suf, slash, flats), rn: roman(t.r, t.suf, best.tonic, best.minor) };
+  });
+  const barChords = [], barRoman = [];
+  for (let b = 0; b < g.nBars; b++) {
+    const xs = segs.slice(b * g.segs, (b + 1) * g.segs), names = xs.map(x => x ? x.name : 'N'), rns = xs.map(x => x ? x.rn : 'N');
+    const same = names.every(n => n === names[0]); barChords.push(same ? names[0] : names); barRoman.push(same ? rns[0] : rns);
+  }
+  /* guitar: distinct chords, changes per bar, barre-shape share, best capo (a plain heuristic) */
+  const played = segs.filter(Boolean), distinct = new Set(played.map(x => x.root + ':' + x.suf)).size;
+  let changes = 0; for (let s = 1; s < segs.length; s++) if (segs[s] && segs[s - 1] && segs[s].name !== segs[s - 1].name) changes++;
+  const barreAt = c => played.length ? played.filter(x => x.suf !== '5' && !OPEN_SHAPES.has(((x.root - c + 12) % 12) + ':' + x.suf)).length / played.length : 0;
+  let capo = 0, capoShare = barreAt(0); for (let c = 1; c <= 7; c++) { const sh = barreAt(c); if (sh < capoShare - 0.2) { capo = c; capoShare = sh; } }
+  const ext = played.length ? played.filter(x => !['', 'm', '5'].includes(x.suf)).length / played.length : 0;
+  const cpb = changes / Math.max(1, g.nBars);
+  const guitar = { distinct, changesPerBar: r2(cpb), barreShare: r2(barreAt(0)), capo: capo || null, barreShareWithCapo: capo ? r2(capoShare) : null, extShare: r2(ext), heuristic: true,
+    level: played.length ? Math.max(1, Math.min(10, Math.round(1 + distinct / 4 + cpb * 1.5 + barreAt(capo) * 3 + ext * 2))) : null };
+  const fit = fitN ? fitSum / fitN : 0;
+  const hasKey = fitN / Math.max(1, nSeg) >= 0.05;
+  return { segs, barChords, barRoman, key: hasKey ? (flats ? FLAT : SHARP)[best.tonic] : null, tonic: hasKey ? best.tonic : null, mode: hasKey ? (best.minor ? 'minor' : 'major') : null, keyConf: hasKey ? keyConf : null, keySource: hasKey ? source : null,
+    fit: r2(fit), chordShare: r2(fitN / Math.max(1, nSeg)), guitar, flats, pitched: notes.length };
+}
+
+/* ---------- 5. Form (B2): sections from chords + drum grooves, with name guesses ---------- */
+/** buildForm(bars) — bars: [{chords:[seg names], drum:letter|'·', density, crash}] → {items:[{sec,name,bars,start}], labels} */
+export function buildForm(bars) {
+  const n = bars.length; if (!n) return { items: [], labelOf: [] };
+  // 1. phrases: runs of equal drum letter, cut into 4-bar phrases (a short tail joins the phrase before it)
+  const phrases = []; let i = 0;
+  while (i < n) { let j = i; while (j < n && bars[j].drum === bars[i].drum) j++;
+    for (let a = i; a < j; a += 4) { const z = Math.min(j, a + 4); if (z - a < 2 && phrases.length && phrases.at(-1).z === a && z - a < 4) phrases.at(-1).z = z; else phrases.push({ a, z }); }
+    i = j; }
+  // 2. label phrases: same label if chords (70%) and drum grooves (30%) match bar by bar
+  const noCh = x => x.chords.every(c => c === 'N');
+  const barSim = (x, y) => { const cx = x.chords, cy = y.chords; let c = 0; for (let k = 0; k < cx.length; k++) if (cx[k] === cy[k]) c++;
+    const dEq = x.drum === y.drum ? 1 : 0; if (noCh(x) && noCh(y)) return dEq; if (x.drum === '·' && y.drum === '·') return c / cx.length; return 0.7 * c / cx.length + 0.3 * dEq; };
+  const phSim = (p, q) => { const lp = p.z - p.a, lq = q.z - q.a, m = Math.min(lp, lq); let s = 0; for (let k = 0; k < m; k++) s += barSim(bars[p.a + k], bars[q.a + k]); return s / m * Math.sqrt(m / Math.max(lp, lq)); };
+  const reps = []; phrases.forEach(p => { let best = -1, bs = 0; reps.forEach((r, ri) => { const s = phSim(p, r); if (s > bs) { bs = s; best = ri; } });
+    if (best >= 0 && bs >= 0.7) p.l = best; else { p.l = reps.length; reps.push(p); } });
+  // 3. merge consecutive same-label phrases, then pairs that always travel together (8-bar sections made of two 4-bar halves)
+  let seq = []; phrases.forEach(p => { const last = seq.at(-1); if (last && last.l.join() === String(p.l)) last.z = p.z; else seq.push({ a: p.a, z: p.z, l: [p.l] }); });
+  for (let pass = 0; pass < 4; pass++) {
+    const key = x => x.l.join('+'); const cnt = {}; seq.forEach(x => { cnt[key(x)] = (cnt[key(x)] || 0) + 1; });
+    let merged = false;
+    for (let k = 0; k + 1 < seq.length; k++) {
+      const A = key(seq[k]), Bk = key(seq[k + 1]); if (A === Bk || cnt[A] < 2) continue;
+      // only two 4-bar halves with the same drum groove make one 8-bar section
+      const unit = x => x.l.length === 1 && x.z - x.a <= 4;
+      if (!seq.every((x, q) => key(x) !== A && key(x) !== Bk || unit(x)) || bars[seq[k].a].drum !== bars[seq[k + 1].a].drum) continue;
+      const pairs = seq.filter((x, q) => q + 1 < seq.length && key(x) === A && key(seq[q + 1]) === Bk).length;
+      if (pairs === cnt[A] && pairs === cnt[Bk]) { const out = []; for (let q = 0; q < seq.length; q++) { if (q + 1 < seq.length && key(seq[q]) === A && key(seq[q + 1]) === Bk) { out.push({ a: seq[q].a, z: seq[q + 1].z, l: [...seq[q].l, ...seq[q + 1].l] }); q++; } else out.push(seq[q]); }
+        seq = out; merged = true; break; }
+    }
+    if (!merged) break;
+    const s2 = []; seq.forEach(x => { const last = s2.at(-1); if (last && key(last) === key(x)) last.z = x.z; else s2.push({ ...x }); }); seq = s2;
+  }
+  // 4. letters in order of first appearance
+  const letterOf = {}; seq.forEach(x => { const k = x.l.join('+'); if (!(k in letterOf)) letterOf[k] = String.fromCharCode(65 + Object.keys(letterOf).length); x.sec = letterOf[k]; });
+  // 5. name guesses (brief §2.5): Intro, Outro, Chorus? (most repeated + energy), Verse?, Pre-chorus?, Bridge?
+  const stats = {}; seq.forEach((x, q) => { const s = stats[x.sec] || (stats[x.sec] = { n: 0, bars: 0, first: q, dens: 0, crash: 0, noDrums: true });
+    s.n++; for (let b = x.a; b < x.z; b++) { s.bars++; s.dens += bars[b].density; s.crash += bars[b].crash; if (bars[b].drum !== '·') s.noDrums = false; } });
+  Object.values(stats).forEach(s => { s.dens /= s.bars; s.crash /= s.bars; });
+  const names = {}, total = n, startOf = x => x.a;
+  const first = seq[0], last = seq.at(-1);
+  // silent stretches (no drums, no chords) are breaks, wherever they are
+  Object.keys(stats).forEach(L => { if (seq.filter(x => x.sec === L).every(x => { for (let b = x.a; b < x.z; b++) if (bars[b].drum !== '·' || !noCh(bars[b])) return false; return true; })) names[L] = 'Break'; });
+  if (seq.length > 2 && !names[first.sec] && stats[first.sec].n === 1 && (stats[first.sec].noDrums || first.z - first.a <= 8)) names[first.sec] = 'Intro';
+  if (seq.length > 2 && stats[last.sec].n === 1 && !names[last.sec]) names[last.sec] = 'Outro';
+  const cand = Object.keys(stats).filter(L => stats[L].n >= 2 && !names[L]);
+  const maxD = Math.max(1e-9, ...cand.map(L => stats[L].dens)), maxC = Math.max(1e-9, ...cand.map(L => stats[L].crash));
+  const energy = L => 0.5 * stats[L].dens / maxD + 0.5 * stats[L].crash / maxC;
+  if (cand.length >= 2) {
+    const chorus = [...cand].sort((x, y) => (stats[y].n + 1.5 * energy(y)) - (stats[x].n + 1.5 * energy(x)) || stats[x].first - stats[y].first)[0]; names[chorus] = 'Chorus?';
+    const verse = cand.filter(L => L !== chorus).sort((x, y) => stats[y].n - stats[x].n || stats[x].first - stats[y].first)[0]; names[verse] = 'Verse?';
+    cand.filter(L => !names[L]).forEach(L => { const occ = seq.map((x, q) => [x, q]).filter(([x]) => x.sec === L);
+      if (occ.every(([x, q]) => seq[q + 1] && seq[q + 1].sec === chorus) && occ.every(([x]) => x.z - x.a <= 8)) names[L] = 'Pre-chorus?'; });
+  } else if (cand.length === 1) names[cand[0]] = 'Verse?';
+  // one bridge at most: the longest one-off section after 40% of the song
+  const br = Object.keys(stats).filter(L => !names[L] && stats[L].n === 1 && startOf(seq.find(x => x.sec === L)) >= 0.4 * total).sort((x, y) => stats[y].bars - stats[x].bars || stats[x].first - stats[y].first)[0];
+  if (br) names[br] = 'Bridge?';
+  const items = seq.map(x => ({ sec: x.sec, name: names[x.sec] || null, bars: x.z - x.a, start: x.a }));
+  const labelOf = []; seq.forEach(x => { for (let b = x.a; b < x.z; b++) labelOf[b] = x.sec; });
+  return { items, labelOf, names };
+}
+
+/* Quality 0–100 (brief §2.7): drum track, drum notes ≥ 200, mapped share, on-grid share, chord-template fit, length 1.5–8 min. */
+export function scoreQuality({ drums, harmony, durS }) {
+  const d = drums && drums.detail, c = {};
+  c.drumTrack = d ? 1 : 0; c.drumNotes = d ? Math.min(1, d.total / 200) : 0; c.mapped = d ? d.mapped / Math.max(1, d.total) : 0; c.onGrid = d ? d.onGrid : 0;
+  c.chordFit = harmony && harmony.chordShare > 0.2 ? Math.max(0, Math.min(1, (harmony.fit - 0.6) / 0.3)) : 0;
+  c.length = durS >= 90 && durS <= 480 ? 1 : durS >= 45 && durS <= 720 ? 0.5 : 0;
+  const W = { drumTrack: 20, drumNotes: 10, mapped: 10, onGrid: 15, chordFit: 25, length: 20 };
+  const score = Math.round(Object.keys(W).reduce((s, k) => s + W[k] * c[k], 0));
+  return { score, grade: score >= 80 ? 'A' : score >= 60 ? 'B' : 'C', parts: Object.fromEntries(Object.entries(c).map(([k, v]) => [k, r2(v)])) };
+}
+
+/* ---------- 6. Song analysis ---------- */
+/** analyse(bytes, opts) → SongAnalysis (brief §2): tempo, meter, drums, chords, key, named form, difficulty, quality.
+ *  Never throws for a parsable file without drums: drums → null, form and chords still come from the other tracks. */
 export function analyse(buf, opts = {}) {
   let smf = buf && buf.tracks ? buf : parse(buf, opts);
   const ppq = smf.ppq, warnings = [];
@@ -319,19 +529,19 @@ export function analyse(buf, opts = {}) {
   let drums = null;
   try { drums = analyseDrums(smf, opts); } catch (e) { if (e.code !== 'no-drums') throw e; warnings.push(e.message); }
 
-  /* song form from drum sections, covering every bar of the song */
-  const barQ = sig0.num * 4 / sig0.den, startBar = Math.floor(firstT / ppq / barQ + 1e-6);
+  /* bar grid of the whole song (first meter) */
+  const barQ = sig0.num * 4 / sig0.den, barTicks = barQ * ppq, startBar = Math.floor(firstT / ppq / barQ + 1e-6);
   const songBars = Math.max(1, Math.ceil(lastT / ppq / barQ - 1e-6) - startBar);
   const maxBars = (opts.limits && opts.limits.maxBars) || LIMITS.maxBars;
   if (!(songBars <= maxBars)) throw new MidiError('too-long', `${songBars} bars (limit ${maxBars})`);
-  const form = [], sections = {};
+
+  /* drum letter per song bar (DrumPath's section rule), '·' = no drums */
+  const drumAt = Array(songBars).fill('·'), dens = Array(songBars).fill(0), crash = Array(songBars).fill(0), drumBarOf = Array(songBars).fill(-1);
   if (drums) {
     const d = drums.detail, lab = d.label, letterOf = ci => d.names[ci];
-    // per bar: section letter (DrumPath rule) or '·' for 2+ empty bars (no drums)
     const per = []; let cur = null;
     for (let i = 0; i < d.nBars; i++) {
-      const ci = lab[i];
-      if (ci < 0) { per.push(null); continue; }
+      const ci = lab[i]; if (ci < 0) { per.push(null); continue; }
       const isGroove = d.clusterSize[ci] >= 2, isFill = d.fills.includes(i);
       if (cur == null || isGroove && letterOf(ci) !== cur && !isFill) cur = letterOf(ci) || cur;
       per.push(cur);
@@ -339,17 +549,35 @@ export function analyse(buf, opts = {}) {
     // empty bars: a run of 2+ is a break; a single one joins the section before it
     for (let i = 0; i < per.length; i++) if (per[i] === null) { let j = i; while (j < per.length && per[j] === null) j++;
       const fillWith = j - i >= 2 ? '·' : (per[i - 1] || per[j] || '·'); for (let k = i; k < j; k++) per[k] = fillWith; i = j - 1; }
-    const lead = Math.max(0, d.firstBar - startBar), tail = Math.max(0, songBars - lead - d.nBars);
-    const seq = [...Array(lead).fill('·'), ...per, ...Array(tail).fill('·')];
-    seq.forEach(s => { const f = form[form.length - 1]; if (f && f.sec === s) f.bars++; else form.push({ sec: s, bars: 1 }); });
-    // per letter: groove = its cluster's prototype bar, fill = the commonest fill bar inside that letter's sections
-    Object.entries(d.names).forEach(([ci, L]) => {
-      const barIdx = per.map((s, i) => s === L ? i : -1).filter(i => i >= 0);
-      const fl = d.fills.filter(i => per[i] === L);
-      let fill = null; if (fl.length) { const fc = {}; fl.forEach(i => { fc[lab[i]] = (fc[lab[i]] || 0) + 1; }); const best = Object.keys(fc).sort((a, b) => fc[b] - fc[a])[0]; fill = fl.find(i => String(lab[i]) === best); }
-      sections[L] = { bars: barIdx.length, groove: d.toRaw(d.clusterProto[+ci]), fill: d.toRaw(fill) };
-    });
-  } else form.push({ sec: '·', bars: songBars });
+    for (let b = 0; b < songBars; b++) { const i = b + startBar - d.firstBar; if (i >= 0 && i < d.nBars) { drumAt[b] = per[i]; dens[b] = d.density[i]; crash[b] = d.crash[i]; drumBarOf[b] = i; } }
+  }
+
+  /* harmony: chord per half-bar (per bar in 3/4, 5/4, 7/8), key, Roman numerals */
+  const segs = (barQ >= 4 && sig0.num % 2 === 0) || (compound && sig0.num === 6) ? 2 : 1;
+  const H = analyseHarmony(smf, { ppq, barTicks, startBar, nBars: songBars, segs, keySigs: allOf(smf, 'keys').sort((a, b) => a.tick - b.tick), drumSrc: drums && drums.features.drumSrc });
+  if (H.chordShare < 0.2) warnings.push('few or no chords found');
+
+  /* form: phrases from chords + drum grooves, letters A B C, name guesses */
+  const F = buildForm(Array.from({ length: songBars }, (_, b) => ({ chords: H.segs.slice(b * segs, (b + 1) * segs).map(x => x ? x.root + ':' + x.suf : 'N'), drum: drumAt[b], density: dens[b], crash: crash[b] })));
+  const form = F.items.map(x => ({ sec: x.sec, name: x.name, bars: x.bars }));
+  const sections = {};
+  for (const x of F.items) {
+    const S = sections[x.sec]; if (S) { S.count++; S._lens.push(x.bars); continue; }
+    sections[x.sec] = { name: x.name, count: 1, _lens: [x.bars], start: x.start,
+      chords: H.barChords.slice(x.start, x.start + x.bars), roman: H.barRoman.slice(x.start, x.start + x.bars), groove: null, fill: null };
+  }
+  if (drums) {
+    const d = drums.detail;
+    for (const [L, S] of Object.entries(sections)) {
+      const idx = []; F.labelOf.forEach((l, b) => { if (l === L && drumBarOf[b] >= 0 && d.label[drumBarOf[b]] >= 0) idx.push(drumBarOf[b]); });
+      if (!idx.length) continue;
+      const cc = {}; idx.forEach(i => { const ci = d.label[i]; if (d.clusterSize[ci] >= 2) cc[ci] = (cc[ci] || 0) + 1; });
+      const best = Object.keys(cc).sort((a, b) => cc[b] - cc[a] || a - b)[0]; if (best != null) S.groove = d.toRaw(d.clusterProto[+best]);
+      const fl = idx.filter(i => d.fills.includes(i));
+      if (fl.length) { const fc = {}; fl.forEach(i => { fc[d.label[i]] = (fc[d.label[i]] || 0) + 1; }); const bf = Object.keys(fc).sort((a, b) => fc[b] - fc[a] || a - b)[0]; S.fill = d.toRaw(fl.find(i => String(d.label[i]) === bf)); }
+    }
+  }
+  for (const S of Object.values(sections)) { S.bars = median(S._lens); delete S._lens; delete S.start; }
 
   const df = drums && drums.features;
   const out = {
@@ -362,11 +590,13 @@ export function analyse(buf, opts = {}) {
     bars: songBars,
     feel: df ? (df.halfTime ? 'half-time' : df.shuffle ? 'shuffle' : df.feel) : null,
     swing: df ? df.swing : null,
-    key: null, mode: null, keyConf: null, // B2
+    key: H.key, mode: H.mode, keyConf: H.keyConf, keySource: H.keySource,
     form, sections,
+    chords: { perBar: H.barChords, roman: H.barRoman, segsPerBar: segs, fit: H.fit, share: H.chordShare, guessed: true },
     drums: df ? { features: df, patterns: drums.patterns, sections: drums.sections, confidence: drums.confidence } : null,
-    difficulty: { drums: df ? df.difficulty : null, guitar: null }, // guitar: B2
-    quality: null, // B2/B3
+    difficulty: { drums: df ? df.difficulty : null, guitar: H.guitar.level },
+    guitar: H.guitar,
+    quality: scoreQuality({ drums, harmony: H, durS }),
     tracks: smf.tracks.length,
     warnings,
   };
@@ -384,5 +614,5 @@ export function writeSMF(notes, o = {}) {
   return new Uint8Array([0x4D, 0x54, 0x68, 0x64, ...u32(6), 0, 0, 0, 1, ppq >> 8, ppq & 255, 0x4D, 0x54, 0x72, 0x6B, ...u32(body.length), ...body]);
 }
 
-const Backline = { VERSION, LIMITS, MidiError, parse, analyse, analyseDrums, findDrums, songSpan, tempoMap, tempoStats, median, writeSMF, GM, TOM_NOTES, LANES };
+const Backline = { VERSION, LIMITS, MidiError, parse, analyse, analyseDrums, analyseHarmony, buildForm, scoreQuality, roman, chordName, CHORD_TYPES, findDrums, songSpan, tempoMap, tempoStats, median, writeSMF, GM, TOM_NOTES, LANES };
 export default Backline;

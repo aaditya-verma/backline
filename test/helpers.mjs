@@ -48,3 +48,20 @@ export const ROCK = { HH: 'xxxxxxxx', S: '..x...x.', K: 'x...x...' };
 export const ROCK_B = { R: 'x.x.x.x.', S: '..x...x.', K: 'x..xx...', C: 'x.......' };
 export const FILL = { S: 'xxxx....', T1: '....xx..', T3: '......xx' };
 export const repeat = (bar, n) => Array(n).fill(bar);
+
+// Chord parts: prog = one entry per bar, a chord name ('C', 'Am', 'G7', 'C/E', 'E5') or [first half, second half].
+// Writes a piano part (close voicing around middle C) and a bass part (root or slash bass, octave 2).
+const PCS = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
+const IV = { '': [0, 4, 7], m: [0, 3, 7], '7': [0, 4, 7, 10], maj7: [0, 4, 7, 11], m7: [0, 3, 7, 10], sus2: [0, 2, 7], sus4: [0, 5, 7], dim: [0, 3, 6], aug: [0, 4, 8], '5': [0, 7] };
+export function chordNotes(name) {
+  const m = /^([A-G][#b]?)(maj7|m7|m|7|sus2|sus4|dim|aug|5)?(?:\/([A-G][#b]?))?$/.exec(name); if (!m) throw new Error('bad chord ' + name);
+  const r = PCS[m[1]], iv = IV[m[2] || ''], bass = m[3] != null ? PCS[m[3]] : r;
+  return { piano: iv.map(i => 60 + ((r + i) % 12)), bass: 36 + bass };
+}
+export function chordParts(prog, { startBar = 0, beats = 4, vel = 80 } = {}) {
+  const piano = [], bass = [];
+  prog.forEach((c, bi) => { const halves = Array.isArray(c) ? c : [c]; const len = beats / halves.length;
+    halves.forEach((name, h) => { if (name === 'N') return; const q = (startBar + bi) * beats + h * len, n = chordNotes(name);
+      n.piano.forEach(note => piano.push({ q, note, vel, len: len * 0.95 })); bass.push({ q, note: n.bass, vel, len: len * 0.95 }); }); });
+  return [{ name: 'Piano', ch: 0, program: 0, events: piano }, { name: 'Bass', ch: 1, program: 33, events: bass }];
+}

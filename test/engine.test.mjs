@@ -67,7 +67,7 @@ test('straight 8th rock at 100 BPM: tempo, meter, grid, main groove', () => {
   assert.equal(f.sub, 2); assert.equal(f.feel, 'straight'); assert.equal(f.timeSub, '8ths'); assert.equal(f.backbeat, '2&4');
   assert.deepEqual(a.drums.patterns.main.v, ROCK);
   assert.equal(a.bars, 8);
-  assert.deepEqual(a.form, [{ sec: 'A', bars: 8 }]);
+  assert.deepEqual(a.form, [{ sec: 'A', name: null, bars: 8 }]);
   assert.deepEqual(a.sections.A.groove.v, ROCK);
 });
 
@@ -111,12 +111,14 @@ test('form: verse groove, fills at phrase ends, chorus groove, silent intro and 
   const ev = [...drumBars(bars, { startBar: 2 }), ...drumBars(repeat(ROCK, 4), { startBar: 20 })];
   const a = analyse(song({ tracks: [{ events: ev }, { name: 'Pad', ch: 0, events: [{ q: 0, note: 60, len: 96 }] }] }));
   assert.equal(a.bars, 24);
-  assert.deepEqual(a.form, [{ sec: '·', bars: 2 }, { sec: 'A', bars: 8 }, { sec: 'B', bars: 8 }, { sec: '·', bars: 2 }, { sec: 'A', bars: 4 }]);
+  // B2 form: silent gaps are named Break; the drum-only groove that repeats is the verse; the one-off later groove is a bridge
+  assert.deepEqual(a.form, [{ sec: 'A', name: 'Break', bars: 2 }, { sec: 'B', name: 'Verse?', bars: 8 }, { sec: 'C', name: 'Bridge?', bars: 8 }, { sec: 'A', name: 'Break', bars: 2 }, { sec: 'B', name: 'Verse?', bars: 4 }]);
   assert.equal(a.form.reduce((s, f) => s + f.bars, 0), a.bars, 'form covers every bar');
-  assert.deepEqual(a.sections.A.groove.v, ROCK);
-  assert.deepEqual(a.sections.B.groove.v, ROCK_B);
-  assert.deepEqual(a.sections.A.fill.v, FILL);
-  assert.equal(a.sections.A.bars, 12);
+  assert.deepEqual(a.sections.B.groove.v, ROCK);
+  assert.deepEqual(a.sections.C.groove.v, ROCK_B);
+  assert.deepEqual(a.sections.B.fill.v, FILL);
+  assert.equal(a.sections.B.bars, 6, 'typical length = median of 8 and 4');
+  assert.equal(a.sections.B.count, 2);
 });
 
 test('ghost notes, open hats, cross-stick come through as pattern characters', () => {
@@ -138,7 +140,7 @@ test('output is deterministic and has the documented shape', () => {
 test('stray notes far from the music are ignored (Lakh: 1,200 files)', () => {
   const ev = [{ q: 0, note: 36 }, ...drumBars(repeat(ROCK, 8), { startBar: 1000 })]; // a lone kick 4,000 beats early
   const a = analyse(song({ tracks: [{ events: ev }] }));
-  assert.equal(a.bars, 8); assert.deepEqual(a.form, [{ sec: 'A', bars: 8 }]);
+  assert.equal(a.bars, 8); assert.deepEqual(a.form, [{ sec: 'A', name: null, bars: 8 }]);
   assert.ok(a.warnings.some(w => /stray/.test(w)));
   assert.ok(a.durS < 30);
 });
