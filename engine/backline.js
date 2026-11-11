@@ -397,7 +397,10 @@ export function analyseHarmony(smf, g) {
   // blues and rock in a major key often use the minor third in riffs; if the tonic and IV chords are played major, call it major
   if (best.minor) { const q = (root, set) => path.reduce((n, k) => n + (k < K && tmpl[k].r === root && set.includes(tmpl[k].suf) ? 1 : 0), 0);
     const tMaj = q(best.tonic, ['', '7', 'maj7']), tMin = q(best.tonic, ['m', 'm7']), ivMaj = q((best.tonic + 5) % 12, ['', '7']), ivMin = q((best.tonic + 5) % 12, ['m', 'm7']);
-    if (tMaj > tMin && ivMaj > ivMin) best = { tonic: best.tonic, minor: false }; }
+    // riff blues: a minor-third riff can make the tonic read Em, but the IV and V are both dominant 7ths (A7 and B7 in E)
+    // → a major blues. A Dorian minor song (Am7–D7) has no dominant V, and a minor blues has a minor iv, so both stay minor.
+    const iv7 = q((best.tonic + 5) % 12, ['7']), v7 = q((best.tonic + 7) % 12, ['7']);
+    if (ivMaj > ivMin && (tMaj > tMin || (iv7 > 0 && v7 > 0))) best = { tonic: best.tonic, minor: false }; }
   const r1 = rOf(best), r2s = scores.find(x => !(x.tonic === best.tonic && x.minor === best.minor)).r;
   const agree = source === 'key signature' ? 0.2 : (sig ? -0.1 : 0);
   const keyConf = Math.round(Math.max(0.05, Math.min(0.99, 0.45 + (r1 - r2s) * 3 + agree + (r1 > 0.8 ? 0.15 : 0))) * 100) / 100;

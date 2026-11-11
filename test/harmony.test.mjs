@@ -139,3 +139,17 @@ test('verse heard first, and an 8-bar verse made of two 4-bar halves stays one s
   assert.equal(a.key, 'B'); assert.equal(a.mode, 'minor');
   assert.deepEqual(a.form.map(f => [f.name, f.bars]), [['Verse?', 16], ['Chorus?', 8], ['Verse?', 16], ['Chorus?', 8], ['Verse?', 8]]);
 });
+
+test('riff-only blues (E5 with A7) is E major; Dorian Am7–D7 stays A minor', () => {
+  const blues = loop(['E5', 'E5', 'E5', 'E5', 'A7', 'A7', 'E5', 'E5', 'B7', 'A7', 'E5', 'E5'], 2);
+  const riff = []; for (let b = 0; b < blues.length; b++) [40, 43, 45, 43].forEach((n, i) => riff.push({ q: b * 4 + i, note: n + 12, vel: 100, len: 0.9 }));
+  const a = analyse(writeMidi({ tracks: [...chordParts(blues), { name: 'Riff', ch: 3, program: 30, events: riff }] }));
+  assert.equal(a.key, 'E'); assert.equal(a.mode, 'major');
+  const d = analyse(writeMidi({ tracks: chordParts(loop(['Am7', 'D7'], 12)) }));
+  assert.equal(d.key, 'A'); assert.equal(d.mode, 'minor');
+});
+
+test('minor blues (Em–Am–B7) stays E minor', () => {
+  const a = analyse(writeMidi({ tracks: chordParts(loop(['Em', 'Em', 'Em', 'Em', 'Am', 'Am', 'Em', 'Em', 'B7', 'Am', 'Em', 'B7'], 2)) }));
+  assert.equal(a.key, 'E'); assert.equal(a.mode, 'minor');
+});

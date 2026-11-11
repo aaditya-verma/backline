@@ -1,5 +1,7 @@
-# Owner's hand-check list (B2 §7). One "Artist | Title" per line.
-Creedence Clearwater Revival | Down on the Corner
-Eagles | Hotel California
-Guns N' Roses | Patience
-The Doors | Roadhouse Blues
+# Owner's hand-check list (B2 §7). One "Artist | Title | answers" per line; answers optional, e.g. "key=E major; chorus=F".
+# Answers come from the owner and his guitarist friend (12 Nov 2026). Notes: Patience is played tuned down a half step
+# (the Lakh files are written at the shapes, so key=G here); Roadhouse Blues is played with E7.
+Creedence Clearwater Revival | Down on the Corner | key=C major; chorus=F
+Eagles | Hotel California | key=B minor; chorus=G
+Guns N' Roses | Patience | key=G major
+The Doors | Roadhouse Blues | key=E major
