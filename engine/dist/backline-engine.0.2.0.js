@@ -305,8 +305,8 @@ const CHORD_TYPES = [['', [0, 4, 7], 1], ['m', [0, 3, 7], 1], ['7', [0, 4, 7, 10
 const KK_MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
 const KK_MIN = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 const MINORISH = new Set(['m', 'm7', 'dim']);
-// open-position chord shapes on a standard-tuned guitar (pitch class of root + suffix); '5' power chords count as easy anywhere
-const OPEN_SHAPES = new Set(['0:', '2:', '4:', '7:', '9:', '9:m', '2:m', '4:m', '9:7', '11:7', '0:7', '2:7', '4:7', '7:7', '9:m7', '2:m7', '4:m7',
+// open-position chord shapes on a standard-tuned guitar (pitch class of root + suffix; F counts via its small 4-string shape); '5' power chords count as easy anywhere
+const OPEN_SHAPES = new Set(['0:', '2:', '4:', '5:', '7:', '9:', '9:m', '2:m', '4:m', '9:7', '11:7', '0:7', '2:7', '4:7', '7:7', '9:m7', '2:m7', '4:m7',
   '0:maj7', '2:maj7', '5:maj7', '9:maj7', '9:sus2', '9:sus4', '2:sus2', '2:sus4', '4:sus4']);
 const flatKey = (tonic, minor) => (minor ? [2, 7, 0, 5, 10, 3] : [5, 10, 3, 8, 1]).includes(tonic);
 const pearson = (a, b) => { const n = a.length, ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n; let num = 0, da = 0, db = 0;
@@ -419,7 +419,8 @@ function analyseHarmony(smf, g) {
   const played = segs.filter(Boolean), distinct = new Set(played.map(x => x.root + ':' + x.suf)).size;
   let changes = 0; for (let s = 1; s < segs.length; s++) if (segs[s] && segs[s - 1] && segs[s].name !== segs[s - 1].name) changes++;
   const barreAt = c => played.length ? played.filter(x => x.suf !== '5' && !OPEN_SHAPES.has(((x.root - c + 12) % 12) + ':' + x.suf)).length / played.length : 0;
-  let capo = 0, capoShare = barreAt(0); for (let c = 1; c <= 7; c++) { const sh = barreAt(c); if (sh < capoShare - 0.2) { capo = c; capoShare = sh; } }
+  let capo = 0, capoShare = barreAt(0); const base = capoShare;
+  if (base >= 0.35) for (let c = 1; c <= 7; c++) { const sh = barreAt(c); if (sh <= base - 0.25 && sh < capoShare) { capo = c; capoShare = sh; } } // fewest barre shapes; lowest capo on a tie
   const ext = played.length ? played.filter(x => !['', 'm', '5'].includes(x.suf)).length / played.length : 0;
   const cpb = changes / Math.max(1, g.nBars);
   const guitar = { distinct, changesPerBar: r2(cpb), barreShare: r2(barreAt(0)), capo: capo || null, barreShareWithCapo: capo ? r2(capoShare) : null, extShare: r2(ext), heuristic: true,
