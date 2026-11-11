@@ -406,7 +406,9 @@ function analyseHarmony(smf, g) {
     // A riff song whose tonic is mostly a power chord (E5, no third) but that also plays E7 or A7 is a major blues too;
     // a metal riff in E minor never plays those, so it stays minor.
     const iv7 = q((best.tonic + 5) % 12, ['7']), vMaj = q((best.tonic + 7) % 12, ['7', '', '5']), t7 = q(best.tonic, ['7']), tNeu = q(best.tonic, ['5']);
-    if ((ivMaj > ivMin && (tMaj > tMin || (iv7 > 0 && vMaj > 0))) || (tNeu >= 2 * tMin && t7 + iv7 > 0)) best = { tonic: best.tonic, minor: false }; }
+    // never when the minor tonic chord is what the song mostly plays: that is a Dorian minor (Stairway's Am–D, Riders' Em–A)
+    const minorTonic = tMin > tMaj + tNeu;
+    if (!minorTonic && ((ivMaj > ivMin && (tMaj > tMin || (iv7 > 0 && vMaj > 0))) || (tNeu >= 2 * tMin && t7 + iv7 > 0))) best = { tonic: best.tonic, minor: false }; }
   const r1 = rOf(best), r2s = scores.find(x => !(x.tonic === best.tonic && x.minor === best.minor)).r;
   const agree = source === 'key signature' ? 0.2 : (sig ? -0.1 : 0);
   const keyConf = Math.round(Math.max(0.05, Math.min(0.99, 0.45 + (r1 - r2s) * 3 + agree + (r1 > 0.8 ? 0.15 : 0))) * 100) / 100;

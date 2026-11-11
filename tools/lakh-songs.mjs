@@ -21,9 +21,14 @@ for (const w of wanted) {
     let a; try { a = analyse(fs.readFileSync(f)); } catch (e) { out.push(`- v${vi + 1}: failed (${e.code})`); return; }
     out.push(`**v${vi + 1}** · key **${a.key || '?'} ${a.mode || ''}** (${a.keySource}, conf ${a.keyConf}) · ${a.bpm} BPM ${a.meter} · ${a.feel || 'no drums'} · grade ${a.quality.grade} (${a.quality.score}) · ${a.bars} bars`);
     const checks = [];
-    if (w.truth.key) checks.push('key ' + tick('key', `${a.key} ${a.mode}` === w.truth.key));
+    // tuned=-1: the record sounds a half step below the shapes, and a fan file may be written either way
+    const PC = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'], ALT = { Db: 'C#', 'D#': 'Eb', Gb: 'F#', 'G#': 'Ab', 'A#': 'Bb' };
+    const pc = n => PC.indexOf(ALT[n] || n), shift = +(w.truth.tuned || 0);
+    const keyOk = (k, m) => { const [tk, tm] = w.truth.key.split(' '); if (m !== tm || pc(k) < 0) return 0; const d = (pc(k) - pc(tk) + 12) % 12; return d === 0 ? 1 : shift && d === (shift + 12) % 12 ? 2 : 0; };
+    let off = 0;
+    if (w.truth.key) { const r = keyOk(a.key, a.mode); if (r === 2) off = shift; checks.push('key ' + tick('key', r > 0) + (r === 2 ? ' (written at record pitch)' : '')); }
     if (w.truth.chorus) { const ch = Object.values(a.sections).find(S => S.name === 'Chorus?'); const first = ch && [ch.chords].flat(2).find(c => c && c !== 'N');
-      checks.push('chorus starts on ' + w.truth.chorus + ' ' + tick('chorus', !!first && first.replace(/\/.*/, '').match(/^[A-G][#b]?/)[0] === w.truth.chorus)); }
+      checks.push('chorus starts on ' + w.truth.chorus + ' ' + tick('chorus', !!first && (pc(first.replace(/\/.*/, '').match(/^[A-G][#b]?/)[0]) - pc(w.truth.chorus) - off + 24) % 12 === 0)); }
     if (checks.length) out[out.length - 1] += ' · owner check: ' + checks.join(', ');
     out.push('', 'Form: ' + a.form.map(x => `${x.sec}${x.name ? ' ' + x.name : ''} ${x.bars}`).join(' · '), '');
     for (const [L, S] of Object.entries(a.sections)) {

@@ -1,21 +1,22 @@
 # Owner's hand-check list (B2 §7). One "Artist | Title | answers" per line; answers optional, e.g. "key=E major; chorus=F".
 # Only facts go here (key, the first chord of the chorus): never lyrics or melodies.
 # "owner" = confirmed by the owner and his guitarist friend; "online" = two or more free chord sites / lessons agree,
-# not yet confirmed by the owner. Tuned-down songs are written at the shapes (the Lakh files are), so Patience = G, Sweet Child = D.
+# not yet confirmed by the owner. Keys are given at the chord shapes; tuned=-1 also accepts a file written at the record's pitch
+# (Sweet Child's Lakh files are in Db, Patience's in G). Open: Back in Black key (sites say E or A), When the Levee Breaks (F major or F minor).
 
 # owner (12 Nov 2026)
 Creedence Clearwater Revival | Down on the Corner | key=C major; chorus=F
 Eagles | Hotel California | key=B minor; chorus=G
-Guns N' Roses | Patience | key=G major
+Guns N' Roses | Patience | key=G major; tuned=-1
 The Doors | Roadhouse Blues | key=E major
 
 # online (12 Nov 2026), waiting for the owner's OK
 Led Zeppelin | Stairway to Heaven | key=A minor
 The Doors | Riders on the Storm | key=E minor
-Led Zeppelin | When the Levee Breaks | key=F major
+Led Zeppelin | When the Levee Breaks
 AC/DC | Highway to Hell | key=A major; chorus=A
 AC/DC | Back in Black | chorus=A
 John Mayer | Gravity | key=G major; chorus=G
 John Mayer | Slow Dancing in a Burning Room | key=C# minor
-Guns N' Roses | Sweet Child O' Mine | key=D major; chorus=A
+Guns N' Roses | Sweet Child O' Mine | key=D major; chorus=A; tuned=-1
 The Beatles | Hey Jude | key=F major
