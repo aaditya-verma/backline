@@ -489,8 +489,10 @@ function buildForm(bars, opt = {}) {
     let merged = false;
     for (let k = 0; k + 1 < seq.length; k++) {
       const A = key(seq[k]), Bk = key(seq[k + 1]); if (A === Bk || cnt[A] < 2) continue;
-      // only two short halves (≤ 4 bars each, same drum groove) make one section
-      const unit = x => x.l.length === 1 && x.z - x.a <= 4;
+      // only two short halves (≤ 8 bars each, same drum groove) make one section
+      const unit = x => x.l.length === 1 && x.z - x.a <= 8;   // a half may already be doubled once (Sweet Child's D–C then G–D)
+      const typLen = L => { const t = seq.filter(x => key(x) === L).map(x => x.z - x.a).sort((u, v) => u - v); return t[t.length >> 1]; };
+      if (typLen(A) > 4 || typLen(Bk) > 4) continue;   // but halves are typically 4 bars: an 8-bar verse + 8-bar chorus stay apart
       if (!seq.every(x => key(x) !== A && key(x) !== Bk || unit(x)) || bars[seq[k].a].drum !== bars[seq[k + 1].a].drum) continue;
       const pairs = seq.filter((x, q) => q + 1 < seq.length && key(x) === A && key(seq[q + 1]) === Bk).length;
       if (pairs >= 2 && pairs >= 0.75 * cnt[A] && pairs >= 0.5 * cnt[Bk]) { const out = []; for (let q = 0; q < seq.length; q++) { if (q + 1 < seq.length && key(seq[q]) === A && key(seq[q + 1]) === Bk) { out.push({ a: seq[q].a, z: seq[q + 1].z, l: [...seq[q].l, ...seq[q + 1].l] }); q++; } else out.push(seq[q]); }
