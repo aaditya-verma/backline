@@ -403,8 +403,10 @@ function analyseHarmony(smf, g) {
     const tMaj = q(best.tonic, ['', '7', 'maj7']), tMin = q(best.tonic, ['m', 'm7']), ivMaj = q((best.tonic + 5) % 12, ['', '7']), ivMin = q((best.tonic + 5) % 12, ['m', 'm7']);
     // riff blues: a minor-third riff can make the tonic read Em, but the IV and V are both dominant 7ths (A7 and B7 in E)
     // → a major blues. A Dorian minor song (Am7–D7) has no dominant V, and a minor blues has a minor iv, so both stay minor.
-    const iv7 = q((best.tonic + 5) % 12, ['7']), v7 = q((best.tonic + 7) % 12, ['7']);
-    if (ivMaj > ivMin && (tMaj > tMin || (iv7 > 0 && v7 > 0))) best = { tonic: best.tonic, minor: false }; }
+    // A riff song whose tonic is mostly a power chord (E5, no third) but that also plays E7 or A7 is a major blues too;
+    // a metal riff in E minor never plays those, so it stays minor.
+    const iv7 = q((best.tonic + 5) % 12, ['7']), vMaj = q((best.tonic + 7) % 12, ['7', '', '5']), t7 = q(best.tonic, ['7']), tNeu = q(best.tonic, ['5']);
+    if ((ivMaj > ivMin && (tMaj > tMin || (iv7 > 0 && vMaj > 0))) || (tNeu >= 2 * tMin && t7 + iv7 > 0)) best = { tonic: best.tonic, minor: false }; }
   const r1 = rOf(best), r2s = scores.find(x => !(x.tonic === best.tonic && x.minor === best.minor)).r;
   const agree = source === 'key signature' ? 0.2 : (sig ? -0.1 : 0);
   const keyConf = Math.round(Math.max(0.05, Math.min(0.99, 0.45 + (r1 - r2s) * 3 + agree + (r1 > 0.8 ? 0.15 : 0))) * 100) / 100;

@@ -153,3 +153,10 @@ test('minor blues (Em–Am–B7) stays E minor', () => {
   const a = analyse(writeMidi({ tracks: chordParts(loop(['Em', 'Em', 'Em', 'Em', 'Am', 'Am', 'Em', 'Em', 'B7', 'Am', 'Em', 'B7'], 2)) }));
   assert.equal(a.key, 'E'); assert.equal(a.mode, 'minor');
 });
+
+test('E5 riff with a few E7 bars is E major; E5 metal riff with Em and C stays E minor', () => {
+  const a = analyse(writeMidi({ tracks: chordParts([...loop(['E5'], 20), 'Em', 'Em', 'Em', 'Em', 'E7', 'E7']) }));
+  assert.equal(a.key, 'E'); assert.equal(a.mode, 'major');
+  const m = analyse(writeMidi({ tracks: chordParts(loop(['E5', 'E5', 'Em', 'C', 'D', 'Em'], 4)) }));
+  assert.equal(m.key, 'E'); assert.equal(m.mode, 'minor');
+});
