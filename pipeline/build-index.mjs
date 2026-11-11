@@ -48,13 +48,24 @@ const songs = []; const ids = new Set(); let dropped = 0;
 for (const [, g] of [...groups].sort((x, y) => x[0] < y[0] ? -1 : 1)) {
   const vs = g.versions;
   if (!vs.some(usable)) { dropped++; continue; }
-  // primary = highest quality score; ties go to the longer file, then the first in sorted order
-  let pi = 0; vs.forEach((a, i) => { const b = vs[pi]; if (a.quality.score > b.quality.score || (a.quality.score === b.quality.score && a.bars > b.bars)) pi = i; });
-  const P = vs[pi];
-  const bpms = vs.map(a => a.bpm).filter(Boolean), bpm = median(bpms);
-  const bpmSure = bpms.filter(b => Math.abs(b - bpm) <= 2).length >= 2;
+  // tempo: fan files are often written at double or half speed (Hotel California at 74 and at 148). Fold every
+  // version's BPM by ×2 / ÷2 onto the reading most versions support, then take the median of the folded values.
+  const bpms = vs.map(a => a.bpm).filter(Boolean);
+  const fold = (b, ref) => [b, b * 2, b / 2].reduce((x, y) => Math.abs(Math.log(y / ref)) < Math.abs(Math.log(x / ref)) ? y : x);
+  let ref = median(bpms), sup = -1;
+  for (const r of [...bpms].sort((x, y) => x - y)) { const n = bpms.filter(b => Math.abs(b - r) / r <= 0.04).length; if (n > sup) { sup = n; ref = r; } }
+  const folded = bpms.map(b => fold(b, ref)), bpm = bpms.length ? Math.round(median(folded) * 10) / 10 : null;
+  const bpmSure = folded.filter(b => Math.abs(b - bpm) <= 2).length >= 2;
   const vote = (vals, tie) => { const c = {}; vals.forEach(v => { c[v] = (c[v] || 0) + 1; }); const best = Math.max(...Object.values(c)); const top = Object.keys(c).filter(k => c[k] === best); return top.includes(tie) ? tie : top.sort()[0]; };
-  const meter = vote(vs.map(a => a.meter), P.meter);
+  const keyed0 = vs.filter(a => a.key), key0 = keyed0.length ? vote(keyed0.map(a => a.key + ' ' + a.mode)) : null;
+  // primary = the best file that agrees with the others: consensus key first, then a BPM at the consensus speed (not
+  // double or half), then the quality score, then the longer file, then the first in sorted order
+  const rank = a => [key0 && a.key && a.key + ' ' + a.mode === key0 ? 1 : 0, bpm && a.bpm && Math.abs(a.bpm - bpm) / bpm <= 0.04 ? 1 : 0, a.quality.score, a.bars];
+  const better = (x, y) => { const p = rank(x), q = rank(y); for (let i = 0; i < p.length; i++) if (p[i] !== q[i]) return p[i] > q[i]; return false; };
+  let pi = 0; vs.forEach((a, i) => { if (better(a, vs[pi])) pi = i; });
+  const P = vs[pi];
+  // a 1-beat signature (a pickup bar written as 1/4) is never the song's meter
+  const meters = vs.map(a => a.meter).filter(m => m && !/^1\//.test(m)), meter = meters.length ? vote(meters, P.meter) : P.meter;
   const keyed = vs.filter(a => a.key), kv = keyed.map(a => a.key + ' ' + a.mode);
   const key = keyed.length ? vote(kv, P.key ? P.key + ' ' + P.mode : undefined) : null;
   const keyAgree = key ? kv.filter(k => k === key).length : 0;
