@@ -1,0 +1,50 @@
+name: Build song index
+# B3: analyse every clean_midi file, group versions, write data/v1 and push it to the `data` branch,
+# then redeploy Pages. Only derived JSON is pushed; the MIDI files stay on the runner and are deleted with it.
+on:
+  push:
+    branches: [main]
+    paths: [pipeline/build-index.mjs, .github/workflows/index.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: index
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Download clean_midi and unpack outside the checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/dl" "$RUNNER_TEMP/scratch" "$RUNNER_TEMP/out"
+          curl -fL --retry 3 -o "$RUNNER_TEMP/dl/c.tar.gz" http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz
+          tar -xzf "$RUNNER_TEMP/dl/c.tar.gz" -C "$RUNNER_TEMP/scratch" --no-same-owner --no-same-permissions
+      - name: Build the index
+        run: |
+          BUILD_DATE=$(date -u +%F) node pipeline/build-index.mjs "$RUNNER_TEMP/scratch" "$RUNNER_TEMP/out" tools/check-songs.txt
+          cat "$RUNNER_TEMP/out/data/v1/report/quality.md" >> "$GITHUB_STEP_SUMMARY"
+          du -sh "$RUNNER_TEMP/out/data/v1"; find "$RUNNER_TEMP/out/data/v1" -type f | wc -l
+      - name: Guard — derived JSON/Markdown/CSV only
+        run: |
+          if find "$RUNNER_TEMP/out" -type f ! \( -name '*.json' -o -name '*.md' -o -name '*.csv' \) | grep -q .; then echo "Unexpected file type in output"; exit 1; fi
+      - name: Push to the data branch
+        run: |
+          cd "$RUNNER_TEMP/out"
+          git init -q -b data
+          git config user.name "backline-index[bot]"; git config user.email "actions@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth 1 origin data 2>/dev/null; then git reset -q --soft FETCH_HEAD; fi
+          echo "Derived song data for https://aaditya-verma.github.io/backline/ — built by .github/workflows/index.yml. No MIDI files." > README.md
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -qm "Song index from main@${GITHUB_SHA::7}"
+          git push -q origin data
+      - name: Redeploy Pages (pushes made with the workflow token don't trigger it)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh workflow run pages.yml -R "${{ github.repository }}" --ref main
