@@ -2,7 +2,7 @@
 
 Song engine + standalone jam app built on the Lakh MIDI Dataset. Search a song, see its form, chords and drum grooves, and play a synthesised backing track (drums, bass, chord pad) with loop, tempo and transpose.
 
-Live: https://aaditya-verma.github.io/backline/ · Status: **B2 built** (engine 0.2.0: chords, key, Roman numerals, named form, guitar difficulty, quality). Chord hand-check on 15 known songs pending. Next: B3 song index.
+Live: https://aaditya-verma.github.io/backline/ · Status: **B2 done** (engine 0.2.0: chords, key, Roman numerals, named form, guitar difficulty, quality; hand-checked on 15 songs). Next: B3 song index.
 
 | Folder | What |
 |---|---|
@@ -66,7 +66,9 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 ## Engine checks (B2, 11 Nov 2026 — engine 0.2.0)
 **What B2 adds:** a chord every half-bar (every bar in 3/4, 5/4, 7/8) from 10 templates (major, minor, 7, maj7, m7, sus2, sus4, dim, aug, power chord) plus slash bass; the key (key-signature event when it fits the notes, otherwise Krumhansl–Kessler profiles, with the tonic chord settling major vs relative minor); Roman numerals; a named form (Intro, Verse?, Chorus?, Pre-chorus?, Bridge?, Outro, Break); a guitar difficulty with a capo hint (heuristic); and a quality grade. Every guessed field is marked (`?` on names, `chords.guessed`, `guitar.heuristic`).
 
-**Unit tests:** 41 / 41 pass (16 new for B2, all on generated files with known answers). **Groove calibration:** still identical to DrumPath on all 1,150 files.
+**Hand-check (12 Nov 2026):** 15 songs in `tools/check-songs.txt` (owner + guitarist friend, plus answers from free chord sites the owner OK'd), run by `songs.yml` on every engine change. Key: 51 / 58 Lakh versions (88%), and the majority of versions is right for every scored song (the misses are transposed fan files). Chorus starting on the right chord: 7 / 22 versions (32%), so section names stay marked `?` and get version consensus in B3. Gravity and Slow Dancing in a Burning Room are not in clean_midi.
+
+**Unit tests:** 48 / 48 pass (23 for B2, all on generated files with known answers). **Groove calibration:** still identical to DrumPath on all 1,150 files.
 
 **Lakh run** (all 17,256 clean_midi files, numbers only; median 7.5 ms per file):
 
