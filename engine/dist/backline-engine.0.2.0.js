@@ -291,7 +291,7 @@ function analyseDrums(smf, opts = {}) {
     // bar-level detail for the song form (engine only)
     detail: { firstBar: Math.round(barStart / barQ), nBars, label: lab, fills, mainC, second, names, sub, spb, barQ, beatQ, compound, sig0,
       clusterSize: clusters.map(c => c.bars.length), clusterProto: clusters.map(c => c.proto), toRaw, density: bo.map(o => o.size), crash: bars.map(b => laneHits(b, 'C')),
-      total: notes.length, mapped: ev.length, onGrid: offsets.length ? offsets.filter(o => Math.abs(o) <= 0.2).length / offsets.length : 0 },
+      crash1: bars.map(b => b.C && b.C[0] !== '.' ? 1 : 0), total: notes.length, mapped: ev.length, onGrid: offsets.length ? offsets.filter(o => Math.abs(o) <= 0.2).length / offsets.length : 0 },
   };
 }
 
@@ -431,31 +431,54 @@ function analyseHarmony(smf, g) {
 }
 
 /* ---------- 5. Form (B2): sections from chords + drum grooves, with name guesses ---------- */
-/** buildForm(bars) — bars: [{chords:[seg names], drum:letter|'·', density, crash}] → {items:[{sec,name,bars,start}], labels} */
+const simpleChord = c => c === 'N' ? 'N' : c.replace(/:(m7|m|dim)$/, ':m').replace(/:(7|maj7|sus2|sus4|aug|5)?$/, ':');
+/** buildForm(bars) — bars: [{chords:['root:suffix'|'N' per segment], drum:letter|'·', density, crash, start}] → {items, labelOf, names}
+ *  1. a 4-bar phrase grid, shifted to where crashes and fill endings mark section starts
+ *  2. phrases labelled by bar-by-bar similarity (simplified chords 70%, drum energy 30%)
+ *  3. repeats merged, two 4-bar halves that always travel together joined, near-duplicate labels merged (≤ 7 labels)
+ *  4. name guesses: Intro, Verse?, Chorus?, Pre-chorus?, Bridge?, Outro, Break */
 function buildForm(bars) {
-  const n = bars.length; if (!n) return { items: [], labelOf: [] };
-  // 1. phrases: runs of equal drum letter, cut into 4-bar phrases (a short tail joins the phrase before it)
-  const phrases = []; let i = 0;
-  while (i < n) { let j = i; while (j < n && bars[j].drum === bars[i].drum) j++;
-    for (let a = i; a < j; a += 4) { const z = Math.min(j, a + 4); if (z - a < 2 && phrases.length && phrases.at(-1).z === a && z - a < 4) phrases.at(-1).z = z; else phrases.push({ a, z }); }
-    i = j; }
-  // 2. label phrases: same label if chords (70%) and drum grooves (30%) match bar by bar
-  const noCh = x => x.chords.every(c => c === 'N');
-  const barSim = (x, y) => { const cx = x.chords, cy = y.chords; let c = 0; for (let k = 0; k < cx.length; k++) if (cx[k] === cy[k]) c++;
-    const dEq = x.drum === y.drum ? 1 : 0; if (noCh(x) && noCh(y)) return dEq; if (x.drum === '·' && y.drum === '·') return c / cx.length; return 0.7 * c / cx.length + 0.3 * dEq; };
-  const phSim = (p, q) => { const lp = p.z - p.a, lq = q.z - q.a, m = Math.min(lp, lq); let s = 0; for (let k = 0; k < m; k++) s += barSim(bars[p.a + k], bars[q.a + k]); return s / m * Math.sqrt(m / Math.max(lp, lq)); };
-  const reps = []; phrases.forEach(p => { let best = -1, bs = 0; reps.forEach((r, ri) => { const s = phSim(p, r); if (s > bs) { bs = s; best = ri; } });
-    if (best >= 0 && bs >= 0.7) p.l = best; else { p.l = reps.length; reps.push(p); } });
+  const n = bars.length; if (!n) return { items: [], labelOf: [], names: {} };
+  const ch = bars.map(b => b.chords.map(simpleChord));
+  const noCh = i => ch[i].every(c => c === 'N'), silent = i => bars[i].drum === '·' && noCh(i);
+  // 1. phrase grid: offset 0–3 with the most section-start marks on phrase starts
+  let off = 0, bestScore = 0;
+  for (let o = 1; o < 4; o++) { let sc = 0, sc0 = 0; for (let b = 0; b < n; b++) { const m = bars[b].start || 0; if ((b - o) % 4 === 0) sc += m; if (b % 4 === 0) sc0 += m; } if (sc > Math.max(bestScore, sc0) + 1) { bestScore = sc; off = o; } }
+  const cuts = new Set([0, n]); for (let b = off; b < n; b += 4) cuts.add(b);
+  // silence and drums on/off are always cuts
+  for (let b = 1; b < n; b++) if (silent(b) !== silent(b - 1) || (bars[b].drum === '·') !== (bars[b - 1].drum === '·')) cuts.add(b);
+  const cs = [...cuts].sort((a, b) => a - b); const phrases = [];
+  for (let k = 0; k + 1 < cs.length; k++) phrases.push({ a: cs[k], z: cs[k + 1] });
+  // a 1-bar scrap (pickup, or a bar after a cut) joins its neighbour unless it is silence
+  for (let k = 0; k < phrases.length; k++) { const p = phrases[k]; if (p.z - p.a === 1 && !silent(p.a) && phrases.length > 1) {
+    const nb = k + 1 < phrases.length && (k === 0 || phrases[k + 1].z - phrases[k + 1].a < 4) ? k + 1 : k - 1; if (nb < 0) continue;
+    const q = phrases[nb]; q.a = Math.min(q.a, p.a); q.z = Math.max(q.z, p.z); phrases.splice(k, 1); k--; } }
+  // 2. labels
+  const dens = bars.map(b => b.density || 0);
+  const barSim = (i, j) => { if (silent(i) || silent(j)) return silent(i) && silent(j) ? 1 : 0;
+    let c = 0; for (let k = 0; k < ch[i].length; k++) if (ch[i][k] === ch[j][k]) c++; c /= ch[i].length;
+    const dd = Math.max(dens[i], dens[j]), d = dd ? 1 - Math.abs(dens[i] - dens[j]) / dd : 1;
+    if (noCh(i) && noCh(j)) return 0.4 * (bars[i].drum === bars[j].drum ? 1 : 0) + 0.6 * d;
+    return 0.7 * c + 0.3 * d; };
+  const phSim = (p, q) => { const lp = p.z - p.a, lq = q.z - q.a, m = Math.min(lp, lq); let s = 0; for (let k = 0; k < m; k++) s += barSim(p.a + k, q.a + k); return s / m * Math.sqrt(m / Math.max(lp, lq)); };
+  const reps = []; phrases.forEach(p => { let best = -1, bs = 0; reps.forEach((r, ri) => { const s = Math.max(...r.map(x => phSim(p, x))); if (s > bs) { bs = s; best = ri; } });
+    if (best >= 0 && bs >= 0.68) { p.l = best; if (reps[best].length < 4) reps[best].push(p); } else { p.l = reps.length; reps.push([p]); } });
+  // near-duplicate labels: merge the closest pair while there are more than 7
+  const lab = phrases.map(p => p.l), alive = new Set(lab);
+  const labSim = (x, y) => { const px = phrases.filter(p => p.l === x), py = phrases.filter(p => p.l === y); let s = 0; for (const p of px) for (const q of py) s = Math.max(s, phSim(p, q)); return s; };
+  while (alive.size > 7) { let bx = -1, by = -1, bs = -1; const L = [...alive];
+    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) { const s = labSim(L[i], L[j]); if (s > bs) { bs = s; bx = L[i]; by = L[j]; } }
+    if (bs < 0.45) break; phrases.forEach(p => { if (p.l === by) p.l = bx; }); alive.delete(by); }
   // 3. merge consecutive same-label phrases, then pairs that always travel together (8-bar sections made of two 4-bar halves)
   let seq = []; phrases.forEach(p => { const last = seq.at(-1); if (last && last.l.join() === String(p.l)) last.z = p.z; else seq.push({ a: p.a, z: p.z, l: [p.l] }); });
-  for (let pass = 0; pass < 4; pass++) {
+  for (let pass = 0; pass < 6; pass++) {
     const key = x => x.l.join('+'); const cnt = {}; seq.forEach(x => { cnt[key(x)] = (cnt[key(x)] || 0) + 1; });
     let merged = false;
     for (let k = 0; k + 1 < seq.length; k++) {
       const A = key(seq[k]), Bk = key(seq[k + 1]); if (A === Bk || cnt[A] < 2) continue;
-      // only two 4-bar halves with the same drum groove make one 8-bar section
+      // only two short halves (≤ 4 bars each, same drum groove) make one section
       const unit = x => x.l.length === 1 && x.z - x.a <= 4;
-      if (!seq.every((x, q) => key(x) !== A && key(x) !== Bk || unit(x)) || bars[seq[k].a].drum !== bars[seq[k + 1].a].drum) continue;
+      if (!seq.every(x => key(x) !== A && key(x) !== Bk || unit(x)) || bars[seq[k].a].drum !== bars[seq[k + 1].a].drum) continue;
       const pairs = seq.filter((x, q) => q + 1 < seq.length && key(x) === A && key(seq[q + 1]) === Bk).length;
       if (pairs === cnt[A] && pairs === cnt[Bk]) { const out = []; for (let q = 0; q < seq.length; q++) { if (q + 1 < seq.length && key(seq[q]) === A && key(seq[q + 1]) === Bk) { out.push({ a: seq[q].a, z: seq[q + 1].z, l: [...seq[q].l, ...seq[q + 1].l] }); q++; } else out.push(seq[q]); }
         seq = out; merged = true; break; }
@@ -465,16 +488,14 @@ function buildForm(bars) {
   }
   // 4. letters in order of first appearance
   const letterOf = {}; seq.forEach(x => { const k = x.l.join('+'); if (!(k in letterOf)) letterOf[k] = String.fromCharCode(65 + Object.keys(letterOf).length); x.sec = letterOf[k]; });
-  // 5. name guesses (brief §2.5): Intro, Outro, Chorus? (most repeated + energy), Verse?, Pre-chorus?, Bridge?
+  // 5. name guesses (brief §2.5)
   const stats = {}; seq.forEach((x, q) => { const s = stats[x.sec] || (stats[x.sec] = { n: 0, bars: 0, first: q, dens: 0, crash: 0, noDrums: true });
-    s.n++; for (let b = x.a; b < x.z; b++) { s.bars++; s.dens += bars[b].density; s.crash += bars[b].crash; if (bars[b].drum !== '·') s.noDrums = false; } });
+    s.n++; for (let b = x.a; b < x.z; b++) { s.bars++; s.dens += bars[b].density || 0; s.crash += bars[b].crash || 0; if (bars[b].drum !== '·') s.noDrums = false; } });
   Object.values(stats).forEach(s => { s.dens /= s.bars; s.crash /= s.bars; });
-  const names = {}, total = n, startOf = x => x.a;
-  const first = seq[0], last = seq.at(-1);
-  // silent stretches (no drums, no chords) are breaks, wherever they are
-  Object.keys(stats).forEach(L => { if (seq.filter(x => x.sec === L).every(x => { for (let b = x.a; b < x.z; b++) if (bars[b].drum !== '·' || !noCh(bars[b])) return false; return true; })) names[L] = 'Break'; });
+  const names = {}, total = n, first = seq[0], last = seq.at(-1);
+  Object.keys(stats).forEach(L => { if (seq.filter(x => x.sec === L).every(x => { for (let b = x.a; b < x.z; b++) if (!silent(b)) return false; return true; })) names[L] = 'Break'; });
   if (seq.length > 2 && !names[first.sec] && stats[first.sec].n === 1 && (stats[first.sec].noDrums || first.z - first.a <= 8)) names[first.sec] = 'Intro';
-  if (seq.length > 2 && stats[last.sec].n === 1 && !names[last.sec]) names[last.sec] = 'Outro';
+  if (seq.length > 2 && !names[last.sec] && stats[last.sec].n === 1) names[last.sec] = 'Outro';
   const cand = Object.keys(stats).filter(L => stats[L].n >= 2 && !names[L]);
   const maxD = Math.max(1e-9, ...cand.map(L => stats[L].dens)), maxC = Math.max(1e-9, ...cand.map(L => stats[L].crash));
   const energy = L => 0.5 * stats[L].dens / maxD + 0.5 * stats[L].crash / maxC;
@@ -484,12 +505,11 @@ function buildForm(bars) {
     cand.filter(L => !names[L]).forEach(L => { const occ = seq.map((x, q) => [x, q]).filter(([x]) => x.sec === L);
       if (occ.every(([x, q]) => seq[q + 1] && seq[q + 1].sec === chorus) && occ.every(([x]) => x.z - x.a <= 8)) names[L] = 'Pre-chorus?'; });
   } else if (cand.length === 1) names[cand[0]] = 'Verse?';
-  // one bridge at most: the longest one-off section after 40% of the song
-  const br = Object.keys(stats).filter(L => !names[L] && stats[L].n === 1 && startOf(seq.find(x => x.sec === L)) >= 0.4 * total).sort((x, y) => stats[y].bars - stats[x].bars || stats[x].first - stats[y].first)[0];
+  const br = Object.keys(stats).filter(L => !names[L] && stats[L].n === 1 && seq.find(x => x.sec === L).a >= 0.4 * total).sort((x, y) => stats[y].bars - stats[x].bars || stats[x].first - stats[y].first)[0];
   if (br) names[br] = 'Bridge?';
   const items = seq.map(x => ({ sec: x.sec, name: names[x.sec] || null, bars: x.z - x.a, start: x.a }));
   const labelOf = []; seq.forEach(x => { for (let b = x.a; b < x.z; b++) labelOf[b] = x.sec; });
-  return { items, labelOf, names };
+  return { items, labelOf, names, offset: off };
 }
 
 /* Quality 0–100 (brief §2.7): drum track, drum notes ≥ 200, mapped share, on-grid share, chord-template fit, length 1.5–8 min. */
@@ -562,7 +582,9 @@ function analyse(buf, opts = {}) {
   if (H.chordShare < 0.2) warnings.push('few or no chords found');
 
   /* form: phrases from chords + drum grooves, letters A B C, name guesses */
-  const F = buildForm(Array.from({ length: songBars }, (_, b) => ({ chords: H.segs.slice(b * segs, (b + 1) * segs).map(x => x ? x.root + ':' + x.suf : 'N'), drum: drumAt[b], density: dens[b], crash: crash[b] })));
+  const startMark = Array(songBars).fill(0);
+  if (drums) { const d = drums.detail; for (let b = 0; b < songBars; b++) { const i = drumBarOf[b]; if (i < 0) continue; startMark[b] = (d.crash1[i] ? 1 : 0) + (d.fills.includes(i - 1) ? 1 : 0); } }
+  const F = buildForm(Array.from({ length: songBars }, (_, b) => ({ chords: H.segs.slice(b * segs, (b + 1) * segs).map(x => x ? x.root + ':' + x.suf : 'N'), drum: drumAt[b], density: dens[b], crash: crash[b], start: startMark[b] })));
   const form = F.items.map(x => ({ sec: x.sec, name: x.name, bars: x.bars }));
   const sections = {};
   for (const x of F.items) {
