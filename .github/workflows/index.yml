@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
-  actions: write
+
 concurrency:
   group: index
   cancel-in-progress: false
@@ -45,6 +45,4 @@ jobs:
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -qm "Song index from main@${GITHUB_SHA::7}"
           git push -q origin data
-      - name: Redeploy Pages (pushes made with the workflow token don't trigger it)
-        env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh workflow run pages.yml -R "${{ github.repository }}" --ref main
+# Pages redeploys itself when this workflow completes (pages.yml: workflow_run).

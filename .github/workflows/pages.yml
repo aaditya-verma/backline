@@ -3,6 +3,9 @@ name: Deploy Pages
 on:
   push:
     branches: [main, data]
+  workflow_run:          # after the song index is pushed to `data` (pushes made with the workflow token trigger nothing)
+    workflows: [Build song index]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
