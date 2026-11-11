@@ -507,9 +507,12 @@ export function buildForm(bars, opt = {}) {
   if (seq.length > 2 && !names[last.sec] && stats[last.sec].n === 1) names[last.sec] = 'Outro';
   const cand = Object.keys(stats).filter(L => stats[L].n >= 2 && !names[L]);
   const maxD = Math.max(1e-9, ...cand.map(L => stats[L].dens)), maxC = Math.max(1e-9, ...cand.map(L => stats[L].crash));
-  const energy = L => 0.5 * stats[L].dens / maxD + 0.5 * stats[L].crash / maxC;
+  const energy = L => { // median over the section's appearances, so one long solo or outro doesn't decide
+    const med = a => { const t = [...a].sort((x, y) => x - y); return t[t.length >> 1]; };
+    const inst = seq.filter(x => x.sec === L).map(x => { let d = 0, c = 0; for (let b = x.a; b < x.z; b++) { d += bars[b].density || 0; c += b > x.a ? bars[b].crash || 0 : 0; } return 0.5 * d / (x.z - x.a) / maxD + 0.5 * c / (x.z - x.a) / maxC; });
+    return med(inst); };
   if (cand.length >= 2) {
-    // the two most repeated sections are verse and chorus: a clearly louder one (≥ 15% more drum energy) is the chorus,
+    // the two most repeated sections are verse and chorus: a clearly louder one (≥ 30% more drum energy, typical appearance) is the chorus,
     // otherwise the one heard first is the verse (songs start with a verse far more often than with a chorus)
     const top2 = [...cand].sort((x, y) => stats[y].bars - stats[x].bars || stats[x].first - stats[y].first).slice(0, 2);
     const [p, q] = top2, ep = energy(p), eq = energy(q);
@@ -518,7 +521,7 @@ export function buildForm(bars, opt = {}) {
     const firstRoot = x => { for (let b = x.a; b < x.z; b++) for (const c of bars[b].chords) if (c !== 'N') return +c.split(':')[0]; return -1; };
     const onHome = L => { const xs = seq.filter(x => x.sec === L); return opt.tonic != null && xs.filter(x => firstRoot(x) === opt.tonic).length * 2 > xs.length; };
     const hp = onHome(p), hq = onHome(q);
-    const chorus = ep > eq * 1.15 ? p : eq > ep * 1.15 ? q : hp !== hq ? (hp ? q : p) : (stats[p].first < stats[q].first ? q : p), verse = chorus === p ? q : p;
+    const chorus = ep > eq * 1.3 ? p : eq > ep * 1.3 ? q : hp !== hq ? (hp ? q : p) : (stats[p].first < stats[q].first ? q : p), verse = chorus === p ? q : p;
     names[chorus] = 'Chorus?'; names[verse] = 'Verse?';
     cand.filter(L => !names[L]).forEach(L => { const occ = seq.map((x, q) => [x, q]).filter(([x]) => x.sec === L);
       if (occ.every(([x, q]) => seq[q + 1] && seq[q + 1].sec === chorus) && occ.every(([x]) => x.z - x.a <= 8)) names[L] = 'Pre-chorus?'; });
