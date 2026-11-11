@@ -167,3 +167,11 @@ test('Dorian minor with major IV and V (Am–D–E, Em–A–B) stays minor', ()
   const r = analyse(writeMidi({ tracks: chordParts(loop(['Em', 'A7', 'Em', 'A7', 'Em', 'A7', 'B7', 'Em'], 3)) }));
   assert.equal(r.key, 'E'); assert.equal(r.mode, 'minor');
 });
+
+test('chorus heard before the first verse: the section starting on the home chord is still the verse', () => {
+  const ch = ['F', 'C', 'G', 'C', 'F', 'C', 'G', 'C'], ve = ['C', 'C', 'G', 'G', 'C', 'C', 'G', 'G'];
+  const prog = [...ch, ...ve, ...ch, ...ve, ...ch, ...ve, ...ch];
+  const a = analyse(writeMidi({ tracks: [{ name: 'Drums', ch: 9, events: drumBars(repeat(ROCK, prog.length)) }, ...chordParts(prog)] }));
+  const chorus = Object.values(a.sections).find(s => s.name === 'Chorus?');
+  assert.equal(chorus.chords[0], 'F');
+});

@@ -445,7 +445,7 @@ const simpleChord = c => c === 'N' ? 'N' : c.replace(/:(m7|m|dim)$/, ':m').repla
  *  2. phrases labelled by bar-by-bar similarity (simplified chords 70%, drum energy 30%)
  *  3. repeats merged, two 4-bar halves that always travel together joined, near-duplicate labels merged (≤ 7 labels)
  *  4. name guesses: Intro, Verse?, Chorus?, Pre-chorus?, Bridge?, Outro, Break */
-export function buildForm(bars) {
+export function buildForm(bars, opt = {}) {
   const n = bars.length; if (!n) return { items: [], labelOf: [], names: {} };
   const ch = bars.map(b => b.chords.map(simpleChord));
   const noCh = i => ch[i].every(c => c === 'N'), silent = i => bars[i].drum === '·' && noCh(i);
@@ -467,7 +467,8 @@ export function buildForm(bars) {
     let c = 0; for (let k = 0; k < ch[i].length; k++) if (ch[i][k] === ch[j][k]) c++; c /= ch[i].length;
     const dd = Math.max(dens[i], dens[j]), d = dd ? 1 - Math.abs(dens[i] - dens[j]) / dd : 1;
     if (noCh(i) && noCh(j)) return 0.4 * (bars[i].drum === bars[j].drum ? 1 : 0) + 0.6 * d;
-    return 0.7 * c + 0.3 * d; };
+    const g = bars[i].drum === '·' && bars[j].drum === '·' ? c : bars[i].drum === bars[j].drum ? 1 : 0;   // same drum groove (a chorus often changes groove, not chords: Highway to Hell)
+    return 0.7 * c + 0.15 * d + 0.15 * g; };
   const phSim = (p, q) => { const lp = p.z - p.a, lq = q.z - q.a, m = Math.min(lp, lq); let s = 0; for (let k = 0; k < m; k++) s += barSim(p.a + k, q.a + k); return s / m * Math.sqrt(m / Math.max(lp, lq)); };
   const reps = []; phrases.forEach(p => { let best = -1, bs = 0; reps.forEach((r, ri) => { const s = Math.max(...r.map(x => phSim(p, x))); if (s > bs) { bs = s; best = ri; } });
     if (best >= 0 && bs >= 0.68) { p.l = best; if (reps[best].length < 4) reps[best].push(p); } else { p.l = reps.length; reps.push([p]); } });
@@ -512,7 +513,12 @@ export function buildForm(bars) {
     // otherwise the one heard first is the verse (songs start with a verse far more often than with a chorus)
     const top2 = [...cand].sort((x, y) => stats[y].bars - stats[x].bars || stats[x].first - stats[y].first).slice(0, 2);
     const [p, q] = top2, ep = energy(p), eq = energy(q);
-    const chorus = ep > eq * 1.15 ? p : eq > ep * 1.15 ? q : (stats[p].first < stats[q].first ? q : p), verse = chorus === p ? q : p;
+    // no clear energy difference: if exactly one of the two starts on the home chord, that one is the verse
+    // (verse on I, chorus on IV/vi/V is the common pattern: Down on the Corner C/F, Hotel California Bm/G, Sweet Child D/A)
+    const firstRoot = x => { for (let b = x.a; b < x.z; b++) for (const c of bars[b].chords) if (c !== 'N') return +c.split(':')[0]; return -1; };
+    const onHome = L => { const xs = seq.filter(x => x.sec === L); return opt.tonic != null && xs.filter(x => firstRoot(x) === opt.tonic).length * 2 > xs.length; };
+    const hp = onHome(p), hq = onHome(q);
+    const chorus = ep > eq * 1.15 ? p : eq > ep * 1.15 ? q : hp !== hq ? (hp ? q : p) : (stats[p].first < stats[q].first ? q : p), verse = chorus === p ? q : p;
     names[chorus] = 'Chorus?'; names[verse] = 'Verse?';
     cand.filter(L => !names[L]).forEach(L => { const occ = seq.map((x, q) => [x, q]).filter(([x]) => x.sec === L);
       if (occ.every(([x, q]) => seq[q + 1] && seq[q + 1].sec === chorus) && occ.every(([x]) => x.z - x.a <= 8)) names[L] = 'Pre-chorus?'; });
@@ -597,7 +603,7 @@ export function analyse(buf, opts = {}) {
   const startMark = Array(songBars).fill(0);
   if (drums) { const d = drums.detail; for (let b = 0; b < songBars; b++) { const i = drumBarOf[b]; if (i < 0) continue; startMark[b] = (d.crash1[i] ? 1 : 0) + (d.fills.includes(i - 1) ? 1 : 0); } }
   const formBars = Array.from({ length: songBars }, (_, b) => ({ chords: H.segs.slice(b * segs, (b + 1) * segs).map(x => x ? x.root + ':' + x.suf : 'N'), drum: drumAt[b], density: dens[b], crash: crash[b], start: startMark[b] }));
-  const F = buildForm(formBars); if (opts.debugForm) opts.debugForm.bars = formBars;
+  const F = buildForm(formBars, { tonic: H.tonic }); if (opts.debugForm) opts.debugForm.bars = formBars;
   const form = F.items.map(x => ({ sec: x.sec, name: x.name, bars: x.bars }));
   const sections = {};
   for (const x of F.items) {
