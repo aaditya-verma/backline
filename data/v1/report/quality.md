@@ -1,18 +1,18 @@
 # Backline song index — quality report
 
-Engine 0.2.0 · 17256 MIDI files · 17189 analysed · 67 rejected · 10234 songs (artist + title) · 8 dropped (no drums and no confident chords) · **10226 in the index** · 285 s
+Engine 0.2.0 · 17256 MIDI files · 17189 analysed · 67 rejected · 10234 songs (artist + title) · 8 dropped (no drums and no confident chords) · **10226 in the index** · 288 s
 
 ## Grades (primary version)
 
-- A: 9070
-- B: 176
-- C: 980
+- A: 9012
+- B: 185
+- C: 1029
 
 ## Versions
 
 - Songs with 2+ versions: 3441; all versions agree on the key: 2201 (64%)
-- BPM sure (2+ versions within ±2 BPM): 2708
-- Primary file transposed from the consensus key: 151
+- BPM sure (2+ versions within ±2 BPM): 2784
+- Primary file transposed from the consensus key: 0
 
 ## Rejected files
 
@@ -43,9 +43,9 @@ Engine 0.2.0 · 17256 MIDI files · 17189 analysed · 67 rejected · 10234 songs
 
 | Song | Key | BPM | Meter | Grade | Form |
 |---|---|---|---|---|---|
-| Tommy Roe — Dizzy | F major | 109.5 ≈ | 4/4 | A | Intro · B · Verse? · Chorus? · Verse? · Chorus? · Verse? · Bridge? · F · Verse? · Break |
+| Tommy Roe — Dizzy | D major | 109.5 ≈ | 4/4 | A | Verse? · B · Verse? · Break · Verse? · Break · Verse? · Break · Chorus? · Bridge? · Chorus |
 | Duval — Angel of Mine | C major | 52 ≈ | 4/4 | A | Intro · Verse? · C · Bridge? · E · F · Verse? · Outro |
-| Pink Floyd — Have a Cigar | E minor | 132 | 4/4 | A | Intro · B · Verse? · D · Verse? · E · Verse? · Bridge? · Outro |
+| Pink Floyd — Have a Cigar | E minor | 132 | 4/4 | C | Break · Verse? · C · Break · Verse? · D · Verse? · Chorus? · Bridge? · Verse? · Chorus? ·  |
 | Pat Metheny — American Garage | G major | 136 ≈ | 4/4 | A | Intro · Chorus? · Verse? · D · E · Verse? · D · F · Verse? · Bridge? · Verse? · H · I · J  |
 | Britney Spears — Like a Virgin   Hollywood Medley (2003: MTV Video Music Awards) | F major | 96 ≈ | 4/4 | A | Verse? · B · Verse? · Chorus? · D · Bridge? · F · Chorus? · Verse? · Outro |
 | The Beatles — Oh! Darling | A major | 74 | 12/8 | A | Intro · B · Verse? · Chorus? · Verse? · Chorus? · Verse? · Outro |
@@ -56,7 +56,7 @@ Engine 0.2.0 · 17256 MIDI files · 17189 analysed · 67 rejected · 10234 songs
 | R.E.M. — Love Is All Around | B major | 88 ≈ | 4/4 | A | Intro · Verse? · C · Chorus? · E · Verse? · Chorus? · Bridge? · G · Verse? |
 | Radiohead — No Surprises | F major | 73 ≈ | 4/4 | A | Intro · Verse? · Chorus? · D · Verse? · Bridge? · D · F · G · Chorus? · D · Verse? |
 | Hanson — This Time Around | Ab major | 82 ≈ | 4/4 | A | Intro · Break · C · D · Verse? · F · Verse? · Chorus? · Verse? · Chorus? · Verse? |
-| UB40 — (I Can't Help) Falling In Love With You | D major | 86 | 4/4 | A | Verse? · Chorus? · Bridge? · Verse? · Chorus? · D · E · F · Outro |
+| UB40 — (I Can't Help) Falling In Love With You | D major | 86 | 4/4 | A | Intro · B · C · Verse? · Bridge? · Verse? · F · G · Verse? |
 | Eric Clapton — Tears in Heaven | A major | 79 | 4/4 | A | Intro · B · Chorus? · D · Chorus? · Verse? · Pre-chorus? · Chorus? · Bridge? · Chorus? · V |
 | Big Mr. — Addicted to That Rush | A major | 214 ≈ | 4/4 | A | Break · Verse? · C · Verse? · Bridge? · E · F · G · Verse? · Break |
 | Alan Parsons — Games People Play | B minor | 133 ≈ | 4/4 | A | Break · B · C · Verse? · E · Verse? · F · Bridge? · Verse? · Break |
