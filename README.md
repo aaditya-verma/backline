@@ -80,6 +80,7 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 | Quality grade | A 15,302 · B 348 · C 1,539 |
 | Sections per song (p10 / median / p90) | 8 / 12 / 22; 80% of bars sit in repeated sections (median) |
 | Section names | Chorus? 72,857 · Verse? 58,299 · Bridge? 13,312 · Pre-chorus? 11,768 · Outro 7,893 · Break 7,460 · Intro 7,239 · letter only 60,964 |
-| Capo hint given | 7,832 songs |
+| Capo hint given | 5,997 songs (35%; only when ≥ 35% of chords would need a barre) |
+| Guitar level (p10 / median / p90) | 5 / 7 / 10 (heuristic; fan files use many passing chords, so it reads high) |
 
 **Still to check:** chords right in ≥ 80% of bars and key right in ≥ 90% of songs on the owner's 15-song hand-check list; section names against the owner's 20-song spot-check (B3). The grade spread (89% A) is generous and will be tightened in B3 once versions of the same song can be compared.
