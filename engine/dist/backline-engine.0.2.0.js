@@ -398,6 +398,10 @@ function analyseHarmony(smf, g) {
   }
   // major vs relative minor: let the tonic chord decide when the profile can't tell them apart
   const rel = relOf(best); if (Math.abs(rOf(best) - rOf(rel)) < 0.08 && tonicWeight(rel.tonic, rel.minor) > tonicWeight(best.tonic, best.minor)) best = { ...rel };
+  // blues and rock in a major key often use the minor third in riffs; if the tonic and IV chords are played major, call it major
+  if (best.minor) { const q = (root, set) => path.reduce((n, k) => n + (k < K && tmpl[k].r === root && set.includes(tmpl[k].suf) ? 1 : 0), 0);
+    const tMaj = q(best.tonic, ['', '7', 'maj7']), tMin = q(best.tonic, ['m', 'm7']), ivMaj = q((best.tonic + 5) % 12, ['', '7']), ivMin = q((best.tonic + 5) % 12, ['m', 'm7']);
+    if (tMaj > tMin && ivMaj > ivMin) best = { tonic: best.tonic, minor: false }; }
   const r1 = rOf(best), r2s = scores.find(x => !(x.tonic === best.tonic && x.minor === best.minor)).r;
   const agree = source === 'key signature' ? 0.2 : (sig ? -0.1 : 0);
   const keyConf = Math.round(Math.max(0.05, Math.min(0.99, 0.45 + (r1 - r2s) * 3 + agree + (r1 > 0.8 ? 0.15 : 0))) * 100) / 100;
@@ -481,7 +485,7 @@ function buildForm(bars) {
       const unit = x => x.l.length === 1 && x.z - x.a <= 4;
       if (!seq.every(x => key(x) !== A && key(x) !== Bk || unit(x)) || bars[seq[k].a].drum !== bars[seq[k + 1].a].drum) continue;
       const pairs = seq.filter((x, q) => q + 1 < seq.length && key(x) === A && key(seq[q + 1]) === Bk).length;
-      if (pairs === cnt[A] && pairs === cnt[Bk]) { const out = []; for (let q = 0; q < seq.length; q++) { if (q + 1 < seq.length && key(seq[q]) === A && key(seq[q + 1]) === Bk) { out.push({ a: seq[q].a, z: seq[q + 1].z, l: [...seq[q].l, ...seq[q + 1].l] }); q++; } else out.push(seq[q]); }
+      if (pairs >= 2 && pairs >= 0.75 * cnt[A] && pairs >= 0.5 * cnt[Bk]) { const out = []; for (let q = 0; q < seq.length; q++) { if (q + 1 < seq.length && key(seq[q]) === A && key(seq[q + 1]) === Bk) { out.push({ a: seq[q].a, z: seq[q + 1].z, l: [...seq[q].l, ...seq[q + 1].l] }); q++; } else out.push(seq[q]); }
         seq = out; merged = true; break; }
     }
     if (!merged) break;
@@ -501,8 +505,12 @@ function buildForm(bars) {
   const maxD = Math.max(1e-9, ...cand.map(L => stats[L].dens)), maxC = Math.max(1e-9, ...cand.map(L => stats[L].crash));
   const energy = L => 0.5 * stats[L].dens / maxD + 0.5 * stats[L].crash / maxC;
   if (cand.length >= 2) {
-    const chorus = [...cand].sort((x, y) => (stats[y].n + 1.5 * energy(y)) - (stats[x].n + 1.5 * energy(x)) || stats[x].first - stats[y].first)[0]; names[chorus] = 'Chorus?';
-    const verse = cand.filter(L => L !== chorus).sort((x, y) => stats[y].n - stats[x].n || stats[x].first - stats[y].first)[0]; names[verse] = 'Verse?';
+    // the two most repeated sections are verse and chorus: a clearly louder one (≥ 15% more drum energy) is the chorus,
+    // otherwise the one heard first is the verse (songs start with a verse far more often than with a chorus)
+    const top2 = [...cand].sort((x, y) => stats[y].bars - stats[x].bars || stats[x].first - stats[y].first).slice(0, 2);
+    const [p, q] = top2, ep = energy(p), eq = energy(q);
+    const chorus = ep > eq * 1.15 ? p : eq > ep * 1.15 ? q : (stats[p].first < stats[q].first ? q : p), verse = chorus === p ? q : p;
+    names[chorus] = 'Chorus?'; names[verse] = 'Verse?';
     cand.filter(L => !names[L]).forEach(L => { const occ = seq.map((x, q) => [x, q]).filter(([x]) => x.sec === L);
       if (occ.every(([x, q]) => seq[q + 1] && seq[q + 1].sec === chorus) && occ.every(([x]) => x.z - x.a <= 8)) names[L] = 'Pre-chorus?'; });
   } else if (cand.length === 1) names[cand[0]] = 'Verse?';

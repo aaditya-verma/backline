@@ -124,3 +124,18 @@ test('drums only: no key, no chords, form from grooves', () => {
 test('same input, same output (deterministic)', () => {
   const b = fullSong(); assert.equal(JSON.stringify(analyse(b)), JSON.stringify(analyse(b)));
 });
+
+test('blues in E: minor-third riff, but E and A chords are major → E major', () => {
+  const prog = loop(['E7', 'E7', 'E7', 'E7', 'A7', 'A7', 'E7', 'E7', 'B7', 'A7', 'E7', 'B7'], 2);
+  const riff = []; for (let b = 0; b < prog.length; b++) [40, 43, 44, 45].forEach((n, i) => riff.push({ q: b * 4 + i, note: n + 12, vel: 100, len: 0.9 })); // E G G# A: blue third
+  const a = analyse(writeMidi({ tracks: [...chordParts(prog), { name: 'Riff', ch: 3, program: 30, events: riff }] }));
+  assert.equal(a.key, 'E'); assert.equal(a.mode, 'major');
+});
+
+test('verse heard first, and an 8-bar verse made of two 4-bar halves stays one section', () => {
+  const verse = ['Bm', 'F#', 'A', 'E', 'G', 'D', 'Em', 'F#'], chorus = ['G', 'D', 'F#', 'Bm', 'G', 'D', 'Em', 'F#'];
+  const prog = [...verse, ...verse, ...chorus, ...verse, ...verse, ...chorus, ...verse];
+  const a = analyse(writeMidi({ tracks: [{ name: 'Drums', ch: 9, events: drumBars(repeat(ROCK, prog.length)) }, ...chordParts(prog)] }));
+  assert.equal(a.key, 'B'); assert.equal(a.mode, 'minor');
+  assert.deepEqual(a.form.map(f => [f.name, f.bars]), [['Verse?', 16], ['Chorus?', 8], ['Verse?', 16], ['Chorus?', 8], ['Verse?', 8]]);
+});
