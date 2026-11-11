@@ -503,7 +503,7 @@ function buildForm(bars, opt = {}) {
   const letterOf = {}; seq.forEach(x => { const k = x.l.join('+'); if (!(k in letterOf)) letterOf[k] = String.fromCharCode(65 + Object.keys(letterOf).length); x.sec = letterOf[k]; });
   // 5. name guesses (brief §2.5)
   const stats = {}; seq.forEach((x, q) => { const s = stats[x.sec] || (stats[x.sec] = { n: 0, bars: 0, first: q, dens: 0, crash: 0, noDrums: true });
-    s.n++; for (let b = x.a; b < x.z; b++) { s.bars++; s.dens += bars[b].density || 0; s.crash += bars[b].crash || 0; if (bars[b].drum !== '·') s.noDrums = false; } });
+    s.n++; for (let b = x.a; b < x.z; b++) { s.bars++; s.dens += bars[b].density || 0; s.crash += b > x.a ? bars[b].crash || 0 : 0; /* the crash that opens every section says nothing */ if (bars[b].drum !== '·') s.noDrums = false; } });
   Object.values(stats).forEach(s => { s.dens /= s.bars; s.crash /= s.bars; });
   const names = {}, total = n, first = seq[0], last = seq.at(-1);
   Object.keys(stats).forEach(L => { if (seq.filter(x => x.sec === L).every(x => { for (let b = x.a; b < x.z; b++) if (!silent(b)) return false; return true; })) names[L] = 'Break'; });
