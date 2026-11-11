@@ -1,0 +1,18 @@
+{
+ "schema": 1,
+ "engine": "0.2.0",
+ "built": "2026-11-11",
+ "builtOn": "actions",
+ "counts": {
+  "files": 17256,
+  "analysed": 17189,
+  "rejected": 67,
+  "songs": 10226,
+  "dropped": 8
+ },
+ "search": [
+  "search.json"
+ ],
+ "source": "Lakh MIDI Dataset v0.1, clean_midi subset (Colin Raffel), CC BY 4.0. Only derived data is published here; no MIDI files.",
+ "citation": "Colin Raffel. \"Learning-Based Methods for Comparing Sequences, with Applications to Audio-to-MIDI Alignment and Matching\". PhD Thesis, 2016."
+}
