@@ -1,0 +1,4 @@
+# Songs to print bar by bar (section-boundary study). Same format as check-songs.txt.
+Creedence Clearwater Revival | Down on the Corner | chorus=F
+AC/DC | Highway to Hell | chorus=A
+Guns N' Roses | Sweet Child O' Mine | chorus=A; key=D major; tuned=-1

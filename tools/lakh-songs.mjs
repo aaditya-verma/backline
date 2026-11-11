@@ -18,7 +18,7 @@ for (const w of wanted) {
   out.push(`### ${w.a} — ${w.t}: ${files.length} version(s)`, '');
   if (!files.length) { out.push('Not found in clean_midi. Artist folders that look close: ' + (artists.filter(a => norm(a).split(' ')[0] === norm(w.a).split(' ')[0]).slice(0, 5).join(', ') || 'none'), ''); continue; }
   files.forEach((f, vi) => {
-    let a; try { a = analyse(fs.readFileSync(f)); } catch (e) { out.push(`- v${vi + 1}: failed (${e.code})`); return; }
+    const dbg = {}; let a; try { a = analyse(fs.readFileSync(f), { debugForm: dbg }); } catch (e) { out.push(`- v${vi + 1}: failed (${e.code})`); return; }
     out.push(`**v${vi + 1}** · key **${a.key || '?'} ${a.mode || ''}** (${a.keySource}, conf ${a.keyConf}) · ${a.bpm} BPM ${a.meter} · ${a.feel || 'no drums'} · grade ${a.quality.grade} (${a.quality.score}) · ${a.bars} bars`);
     const checks = [];
     // tuned=-1: the record sounds a half step below the shapes, and a fan file may be written either way
@@ -35,6 +35,11 @@ for (const w of wanted) {
       const show = c => Array.isArray(c) ? c.join(' ') : c;
       out.push(`- ${L} ${S.name || ''} (${S.bars} bars, ×${S.count}): ${S.chords.slice(0, 8).map(show).join(' | ')}${S.chords.length > 8 ? ' …' : ''}  —  ${S.roman.slice(0, 8).map(show).join(' | ')}`);
     }
+    // BARS=1: one line per bar (chord names, drum groove letter, crash, section-start marks) to study section boundaries
+    if (process.env.BARS && dbg.bars) { const NM = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+      const cn = c => c === 'N' ? 'N' : NM[+c.split(':')[0]] + c.split(':')[1];
+      let sec = 0, at = 0; const starts = new Map(); a.form.forEach(x => { starts.set(at, x.sec + (x.name ? ' ' + x.name : '')); at += x.bars; });
+      out.push('```'); dbg.bars.forEach((b, i) => out.push(`${String(i).padStart(3)} ${(starts.get(i) || '').padEnd(10)} ${b.chords.map(cn).join(' ').padEnd(12)} ${b.drum} d${(b.density || 0).toFixed(1)}${b.crash ? ' C' : ''}${b.start ? ' S' + b.start : ''}`)); out.push('```'); }
     out.push('');
   });
 }

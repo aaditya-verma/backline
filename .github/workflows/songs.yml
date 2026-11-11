@@ -4,7 +4,7 @@ name: Hand-check songs
 on:
   push:
     branches: [main]
-    paths: [tools/check-songs.txt, tools/lakh-songs.mjs, .github/workflows/songs.yml]
+    paths: [tools/check-songs.txt, tools/check-bars.txt, tools/lakh-songs.mjs, engine/backline.js, .github/workflows/songs.yml]
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,5 +25,7 @@ jobs:
         run: |
           node tools/lakh-songs.mjs "$RUNNER_TEMP/scratch" tools/check-songs.txt "$RUNNER_TEMP/songs.md"
           cat "$RUNNER_TEMP/songs.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Bar-by-bar view of the songs in tools/check-bars.txt (chord names and drum letters only)
+        run: BARS=1 node tools/lakh-songs.mjs "$RUNNER_TEMP/scratch" tools/check-bars.txt "$RUNNER_TEMP/bars.md" > /dev/null && cat "$RUNNER_TEMP/bars.md"
       - uses: actions/upload-artifact@v4
         with: { name: hand-check, path: "${{ runner.temp }}/songs.md" }

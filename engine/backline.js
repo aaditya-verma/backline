@@ -596,7 +596,8 @@ export function analyse(buf, opts = {}) {
   /* form: phrases from chords + drum grooves, letters A B C, name guesses */
   const startMark = Array(songBars).fill(0);
   if (drums) { const d = drums.detail; for (let b = 0; b < songBars; b++) { const i = drumBarOf[b]; if (i < 0) continue; startMark[b] = (d.crash1[i] ? 1 : 0) + (d.fills.includes(i - 1) ? 1 : 0); } }
-  const F = buildForm(Array.from({ length: songBars }, (_, b) => ({ chords: H.segs.slice(b * segs, (b + 1) * segs).map(x => x ? x.root + ':' + x.suf : 'N'), drum: drumAt[b], density: dens[b], crash: crash[b], start: startMark[b] })));
+  const formBars = Array.from({ length: songBars }, (_, b) => ({ chords: H.segs.slice(b * segs, (b + 1) * segs).map(x => x ? x.root + ':' + x.suf : 'N'), drum: drumAt[b], density: dens[b], crash: crash[b], start: startMark[b] }));
+  const F = buildForm(formBars); if (opts.debugForm) opts.debugForm.bars = formBars;
   const form = F.items.map(x => ({ sec: x.sec, name: x.name, bars: x.bars }));
   const sections = {};
   for (const x of F.items) {

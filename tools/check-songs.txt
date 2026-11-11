@@ -10,7 +10,7 @@ Eagles | Hotel California | key=B minor; chorus=G
 Guns N' Roses | Patience | key=G major; tuned=-1
 The Doors | Roadhouse Blues | key=E major
 
-# online (12 Nov 2026), waiting for the owner's OK
+# online (12 Nov 2026), owner OK'd "for now" the same night
 Led Zeppelin | Stairway to Heaven | key=A minor
 The Doors | Riders on the Storm | key=E minor
 Led Zeppelin | When the Levee Breaks
