@@ -1,65 +1,72 @@
 # Backline song index — quality report
 
-Engine 0.2.0 · 17256 MIDI files · 17189 analysed · 67 rejected · 10234 songs (artist + title) · 8 dropped (no drums and no confident chords) · **10226 in the index** · 288 s
+Engine 0.2.1 · 17256 clean_midi files + 37673 LMD-matched · 54817 analysed · 112 rejected · 25396 songs (artist + title) · 33 dropped (no drums and no confident chords) · **25363 in the index** · 808 s
+
+## B6: LMD-matched + Million Song Dataset
+
+- Matched MIDI files not already in clean_midi: 37673 (4734 joined an existing song as extra versions, 15162 songs are new)
+- Songs in the index from clean_midi: 10226; new from LMD-matched: 15137
+- With a year: 10821; with a genre: 22830 (from the track: 19501, from the artist: 3329)
+- Genres: Rock 7248 · Pop 5142 · Electronic 2416 · Classical 1041 · Jazz 1006 · Metal 994 · Funk & Disco 816 · Soul & R&B 805 · Blues 745 · Hip hop 725 · Country 672 · Latin 414 · Folk 401 · Reggae 257 · Punk 148
 
 ## Grades (primary version)
 
-- A: 9012
-- B: 185
-- C: 1029
+- A: 21175
+- B: 872
+- C: 3316
 
 ## Versions
 
-- Songs with 2+ versions: 3441; all versions agree on the key: 2201 (64%)
-- BPM sure (2+ versions within ±2 BPM): 2784
+- Songs with 2+ versions: 10291; all versions agree on the key: 6972 (68%)
+- BPM sure (2+ versions within ±2 BPM): 8512
 - Primary file transposed from the consensus key: 0
 
 ## Rejected files
 
-- too-long: 44
+- too-long: 84
+- no-notes: 14
 - not-midi: 13
-- no-notes: 9
 - smpte: 1
 
 ## Owner's hand-check songs: consensus key
 
-9 / 9 right (songs not in the index are listed but not counted)
+7 / 9 right (songs not in the index are listed but not counted)
 
 | Song | Answer | Consensus (versions agreeing) | |
 |---|---|---|---|
-| Creedence Clearwater Revival — Down on the Corner | C major | C major (3/4) | ✓ |
-| Eagles — Hotel California | B minor | B minor (7/9) | ✓ |
+| Creedence Clearwater Revival — Down on the Corner | C major | C major (6/7) | ✓ |
+| Eagles — Hotel California | B minor | B minor (13/16) | ✓ |
 | Guns N' Roses — Patience | G major | G major (3/3) | ✓ |
 | The Doors — Roadhouse Blues | E major | E major (5/5) | ✓ |
-| Led Zeppelin — Stairway to Heaven | A minor | A minor (12/12) | ✓ |
-| The Doors — Riders on the Storm | E minor | E minor (5/7) | ✓ |
+| Led Zeppelin — Stairway to Heaven | A minor | A minor (28/28) | ✓ |
+| The Doors — Riders on the Storm | E minor | C major (6/14) | ✗ |
 | AC/DC — Highway to Hell | A major | A major (3/3) | ✓ |
 | John Mayer — Gravity | G major | not in index () | ✗ |
 | John Mayer — Slow Dancing in a Burning Room | C# minor | not in index () | ✗ |
-| Guns N' Roses — Sweet Child O' Mine | D major | Db major (2/3) | ✓ |
+| Guns N' Roses — Sweet Child O' Mine | D major | F# major (4/7) | ✗ |
 | The Beatles — Hey Jude | F major | F major (10/11) | ✓ |
 
 ## Random sample for a spot-check (fixed seed)
 
 | Song | Key | BPM | Meter | Grade | Form |
 |---|---|---|---|---|---|
-| Tommy Roe — Dizzy | D major | 109.5 ≈ | 4/4 | A | Verse? · B · Verse? · Break · Verse? · Break · Verse? · Break · Chorus? · Bridge? · Chorus |
-| Duval — Angel of Mine | C major | 52 ≈ | 4/4 | A | Intro · Verse? · C · Bridge? · E · F · Verse? · Outro |
-| Pink Floyd — Have a Cigar | E minor | 132 | 4/4 | C | Break · Verse? · C · Break · Verse? · D · Verse? · Chorus? · Bridge? · Verse? · Chorus? ·  |
-| Pat Metheny — American Garage | G major | 136 ≈ | 4/4 | A | Intro · Chorus? · Verse? · D · E · Verse? · D · F · Verse? · Bridge? · Verse? · H · I · J  |
-| Britney Spears — Like a Virgin   Hollywood Medley (2003: MTV Video Music Awards) | F major | 96 ≈ | 4/4 | A | Verse? · B · Verse? · Chorus? · D · Bridge? · F · Chorus? · Verse? · Outro |
-| The Beatles — Oh! Darling | A major | 74 | 12/8 | A | Intro · B · Verse? · Chorus? · Verse? · Chorus? · Verse? · Outro |
-| The Supremes — Stop! In the Name of Love | C major | 117 ≈ | 4/4 | A | Intro · Chorus? · Verse? · Chorus? · D · E · Chorus? · Verse? · Chorus? · D · Bridge? · Ch |
-| Romantics — Talking In Your Sleep | C major | 130 | 4/4 | A | Intro · Verse? · Chorus? · Verse? · Pre-chorus? · Chorus? · Verse? · Pre-chorus? · Chorus? |
-| Mac Davis — Baby Don't Get Hooked on Me | G major | 100 ≈ | 4/4 | C | Verse? · Chorus? · Verse? · Chorus? · C · Chorus? · D · Chorus? · Verse? · Chorus? · Bridg |
-| Elvis Presley — Don't Cry Daddy | C major | 175 ≈ | 4/4 | A | Intro · B · Chorus? · Verse? · Chorus? · Verse? · Pre-chorus? · Chorus? · F · Chorus? · Ve |
-| R.E.M. — Love Is All Around | B major | 88 ≈ | 4/4 | A | Intro · Verse? · C · Chorus? · E · Verse? · Chorus? · Bridge? · G · Verse? |
-| Radiohead — No Surprises | F major | 73 ≈ | 4/4 | A | Intro · Verse? · Chorus? · D · Verse? · Bridge? · D · F · G · Chorus? · D · Verse? |
-| Hanson — This Time Around | Ab major | 82 ≈ | 4/4 | A | Intro · Break · C · D · Verse? · F · Verse? · Chorus? · Verse? · Chorus? · Verse? |
-| UB40 — (I Can't Help) Falling In Love With You | D major | 86 | 4/4 | A | Intro · B · C · Verse? · Bridge? · Verse? · F · G · Verse? |
-| Eric Clapton — Tears in Heaven | A major | 79 | 4/4 | A | Intro · B · Chorus? · D · Chorus? · Verse? · Pre-chorus? · Chorus? · Bridge? · Chorus? · V |
-| Big Mr. — Addicted to That Rush | A major | 214 ≈ | 4/4 | A | Break · Verse? · C · Verse? · Bridge? · E · F · G · Verse? · Break |
-| Alan Parsons — Games People Play | B minor | 133 ≈ | 4/4 | A | Break · B · C · Verse? · E · Verse? · F · Bridge? · Verse? · Break |
-| Emerson, Lake & Palmer — The Sage | A minor | 99.4 ≈ | 4/4 | C | Intro · B · C · D · B · Verse? · B · F · B · Verse? · G · Verse? · G · Verse? · H · Verse? |
-| Creed — Higher | D major | 78 | 1/4 | A | Verse? · B · Pre-chorus? · Chorus? · E · Pre-chorus? · Chorus? · E · Chorus? · E · Chorus? |
-| Johnny Mathis — Misty | Eb major | 75 ≈ | 4/4 | A | Intro · Verse? · C · Verse? · D · Chorus? · Verse? · Bridge? · Verse? · C · Verse? · D · C |
+| Steely Dan — With A Gun | A minor | 170 ≈ | 4/4 | A | Break · Verse? · C · Verse? · Chorus? · Verse? · E · Verse? · E · Verse? · E · Bridge? · G |
+| Sheena Easton — U Got the Look | B major | 120 ≈ | 4/4 | A | Intro · Verse? · Bridge? · D · Verse? · E · Verse? · F · Outro |
+| Los Delinqüentes — Arena En Los Zapatos | C# minor | 130 ≈ | 4/4 | A | Verse? · B · Verse? |
+| Lee Ann Womack / Sons Of The Desert — I Hope You Dance (with Sons Of The Desert) | Bb major | 72 ≈ | 4/4 | A | Intro · B · Bridge? · D · Break |
+| INXS — Need You Tonight | C minor | 120 ≈ | 4/4 | A | Intro · B · Bridge? · D · E · Outro |
+| Dave Matthews Band — Pantala Naga Pampa | D major | 120 ≈ | 4/4 | B | Intro · B · Bridge? · D · E · Outro |
+| Sheryl Crow — Hard To Make A Stand | C major | 101.9 ≈ | 4/4 | A | Break · B · Verse? · D · E · Bridge? · Verse? · Outro |
+| Nocturnal Rites — The King's Command | E minor | 200 ≈ | 4/4 | A | Verse? · B · C · Verse? · D · Verse? · E · Verse? · Chorus? · Verse? · Chorus? · G · Verse |
+| Frans Bauer — De Liefdestango | C major | 121 ≈ | 4/4 | A | A · Verse? · Chorus? · D · Verse? · Chorus? · A · Verse? · Chorus? · D · Verse? · Chorus?  |
+| Swingin' Medallions — Double Shot (Of My Baby's Love) | F major | 127 ≈ | 4/4 | A | Verse? · Chorus? · Verse? · Chorus? · Verse? · Bridge? · Outro |
+| Meat Puppets — Lost | A major | 115 | 4/4 | A | Intro · Verse? · C · Verse? · C · Chorus? · Verse? · E · Verse? · Chorus? · Verse? · E · V |
+| Merle Haggard — Love Me Tender | D major | 76 | 4/4 | C | Verse? · Chorus? · Verse? · Chorus? · Verse? · Chorus? · Verse? · Bridge? · Break |
+| Blue Rodeo — Flying | E major | 135 ≈ | 4/4 | A | Intro · Verse? · Chorus? · Verse? · Bridge? · E · Chorus? · Verse? · F · Break |
+| They Might Be Giants — Turn Around | A major | 140 ≈ | 4/4 | A | Break · Verse? · Chorus? · D · Verse? · E · Verse? · Chorus? · D · Verse? · E · Verse? · C |
+| Vaughn — Isle of Capri | F major | 106 ≈ | 4/4 | A | Intro · Verse? · Chorus? · Verse? · Chorus? · Verse? · Bridge? · E · Break |
+| Elvis Presley — Follow That Dream | F major | 126 ≈ | 4/4 | A | Break · Chorus? · Verse? · Chorus? · D · Chorus? · Verse? · Chorus? · D |
+| Bach Johann Sebastian — Aria From the Goldberg Variations, BWV 988 | G major | 120 ≈ | 4/4 | C | Verse? · Chorus? · Verse? · C · Verse? · Bridge? · Verse? · E · F · G · Chorus? · F · Vers |
+| Tom Jones — I Who Have Nothing | E minor | 139 ≈ | 4/4 | A | Intro · Chorus? · Verse? · Chorus? · Verse? · D · E · Chorus? · Verse? · E · Bridge? · Cho |
+| Paul McCartney — Bluebird | B minor | 88 ≈ | 4/4 | A | Intro · B · Verse? · Chorus? · E · Verse? · Chorus? · E · Verse? · Chorus? · E · Verse? ·  |
+| David Gilmour — High Hopes | C minor | 77 ≈ | 4/4 | A | Verse? · B · Verse? · Chorus? · Verse? · B · D · E · Bridge? · G · Verse? · Chorus? |
