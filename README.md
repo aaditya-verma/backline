@@ -2,7 +2,7 @@
 
 Song engine + standalone jam app built on the Lakh MIDI Dataset. Search a song, see its form, chords and drum grooves, and play a synthesised backing track (drums, bass, chord pad) with loop, tempo and transpose.
 
-Live: https://aaditya-verma.github.io/backline/ · Status: **B5 built**: jam mode, setlists with share links, and your own MIDI files, on top of B4 (search, song sheet, backing-track player, offline). B3 song index: 10,226 songs in `data/v1` on the `data` branch. Next: B7 hand-over to DrumPath (B6 is optional).
+Live: https://aaditya-verma.github.io/backline/ · Status: **B5 built**: jam mode, setlists with share links, and your own MIDI files, on top of B4 (search, song sheet, backing-track player, offline). Design and navigation now follow DrumPath (owner request, 14 Nov 2026). B3 song index: 10,226 songs in `data/v1` on the `data` branch. Next: B7 hand-over to DrumPath (B6 is optional).
 
 | Folder | What |
 |---|---|
@@ -102,4 +102,10 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 - **Setlists**: + Setlist on a song saves it with its tempo and transpose; reorder, remove, rename, Start → each song opens at its own settings with ‹ Prev / Next ›. **Share link**: `#set=<base64url(JSON {n, s:[[id, tempo, transpose]]})>`; the other phone previews it and saves it. Kept in the browser (localStorage); nothing is uploaded.
 - **Open my MIDI file**: analysed on the device with the same engine (0.2.1 adds `grid`, the bar → file position map); the file and its analysis are kept in this browser's IndexedDB and never uploaded. The song sheet lists the file's parts; **Playing the file** plays every part (melody and vocal line included) with simple synth sounds, each part can be muted; **Playing the backing** switches to the generated drums, bass and chords.
 - **Checks:** `node test/ui/b5.mjs <url> "<Artist - Title.mid>"` (own file → parts → plays the file → mute a part; setlist → reorder → Prev/Next with saved tempo → share link saved on a second phone; jam mode → beats move → closes). 14 Nov 2026: 17/17 pass, smoke 12/12, layout 0 problems on 7 screens × 8 sizes × 2 text sizes.
+
+## Design and navigation (from DrumPath, 14 Nov 2026)
+`app/shell.js` and `app/app.css` take DrumPath's `src/js/05-shell.js` and `src/css/app.css`: the same tokens (soft grey levels, light + dark + theme button), frosted header with a status chip, a tab row on wide screens, a floating bottom bar (Home · Search · Browse · Setlists · More) with a More sheet on phones, the floating dock with **Back** (a back stack that names where it goes and restores the exact screen and scroll), bottom sheets, lists, cards and tappable stat cards. Backline keeps its own amber accent; drum lanes use DrumPath's pad colours.
+- **Drill-downs:** Browse › Key / Tempo / Meter / Feel / Drum level / Guitar level / Artist › value › songs, with crumbs; every fact on a song page (key, BPM, meter, feel, difficulty) opens the songs that share it; the artist name and crumbs open the artist page; a bar opens a sheet with its chords, Roman numerals and drum pattern, plus Play from here / Loop this bar / Loop the section; “Version 1 of 9” opens the versions table.
+- **Settings:** theme, default quality filter, offline songs and storage.
+- **Checks:** `node test/ui/nav.mjs <url>` (bottom bar vs tabs, More sheet, theme, Browse drill-down, Back restores list + scroll, tappable facts, bar sheet, crumbs): 15/15. Layout: 0 problems on 11 screens × 8 sizes × 2 text sizes.
 

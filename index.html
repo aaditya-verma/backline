@@ -5,26 +5,39 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Backline</title>
 <meta name="description" content="Song reference and backing tracks for jamming: chords, form and drum grooves for 10,000 songs.">
-<meta name="theme-color" content="#14171c">
+<meta name="theme-color" content="#e7e9ec">
 <link rel="manifest" href="app/manifest.webmanifest">
 <link rel="icon" href="app/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app/app.css">
+<script>try{var m=localStorage.getItem('backline-theme')||'system';document.documentElement.dataset.theme=(m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
 </head>
 <body>
-<header><a class="brand" href="#">Backline</a><span class="where" id="where"></span><span class="net" id="net"></span><a href="#credits" class="btn ghost" aria-label="Credits">ⓘ</a></header>
-<main><div class="empty">Loading…</div></main>
-<footer>Data: Lakh MIDI Dataset (C. Raffel, CC BY 4.0), fan-made transcriptions that may be wrong. <a href="#credits">Credits</a></footer>
+<header class="top"><div class="top-in">
+  <div class="brand-row">
+    <a class="brand" href="#" style="text-decoration:none">Backline</a>
+    <span class="sync" title="Connection"><span class="dot" id="ndot"></span><span id="ntxt">Online</span></span>
+    <span class="sp"></span>
+    <button class="pbtn" id="themebtn" data-act="theme" title="Theme"></button>
+    <button class="pbtn" id="searchbtn" data-act="search" title="Search"></button>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+</div></header>
+<nav class="bnav" id="bnav" aria-label="Sections"></nav>
+<div class="dock"><button class="dk-b dk-back" id="backb" data-act="back" title="Back" aria-label="Back"></button><button class="dk-b dk-nav" data-act="more" title="All sections" aria-label="All sections"></button></div>
+<div class="scrim hidden" id="scrim" data-act="more"></div>
+<div class="msheet hidden" id="msheet" role="dialog" aria-label="All sections"></div>
+<main id="view"><div class="empty">Loading…</div></main>
 <div id="player" hidden>
-  <div class="r1"><button class="play pri" aria-label="Play">▶</button><div class="pos" id="ppos"><b>Ready</b><span>Tap play, or pick a section to loop</span></div>
-    <button id="loopinfo" class="ghost">Whole song</button></div>
+  <div class="r1"><button class="play pri" aria-label="Play"></button><div class="pos" id="ppos"><b>Ready</b><span>Tap play, or tap a section to loop it</span></div>
+    <button id="loopinfo" class="ghost sm">Whole song</button></div>
   <div class="r2">
     <div class="tempo"><input id="tempo" type="range" min="50" max="120" step="5" value="100" aria-label="Tempo"><span id="tempoval">100%</span></div>
     <button data-mute="drums" aria-pressed="true">Drums</button><button data-mute="bass" aria-pressed="true">Bass</button><button data-mute="chords" aria-pressed="true">Chords</button><button data-mute="click" aria-pressed="false">Click</button><button id="countin">Count-in</button>
   </div>
 </div>
-<div id="toast" role="status"></div>
 <noscript>Backline needs JavaScript.</noscript>
 <script type="module" src="app/app.js"></script>
 </body>
