@@ -26,7 +26,7 @@ async function loadIndex() {
   if (INDEX) return INDEX;
   const man = await (await fetch(DATA + 'manifest.json')).json();
   const parts = await Promise.all(man.search.map(f => fetch(DATA + f).then(r => r.json())));
-  INDEX = parts.flat().map(r => ({ id: r[0], title: r[1], artist: r[2], bpm: r[3], key: r[4], meter: r[5], feel: r[6], q: r[7], dl: r[8], gl: r[9], n: norm(r[1] + ' ' + r[2]), an: norm(r[2]) }));
+  INDEX = parts.flat().map(r => ({ id: r[0], title: r[1], artist: r[2], bpm: r[3], key: r[4], meter: r[5], feel: r[6], q: r[7], dl: r[8], gl: r[9], yr: r[10] ?? null, ge: r[11] ?? null, n: norm(r[1] + ' ' + r[2]), an: norm(r[2]) }));
   BYID = new Map(INDEX.map(s => [s.id, s])); INDEX.manifest = man; return INDEX;
 }
 async function loadSong(id) { const r = await fetch(`${DATA}songs/${id.slice(0, 2)}/${id}.json`); if (!r.ok) throw new Error('not found'); return r.json(); }
@@ -90,12 +90,13 @@ async function showHome() {
 }
 
 // ---------- Search ----------
-const F = store.get('filters', { q: '', bmin: '', bmax: '', key: '', meter: '', feel: '', minq: 60, dmax: '', gmax: '', open: false });
+const F = { q: '', bmin: '', bmax: '', key: '', meter: '', feel: '', minq: 60, dmax: '', gmax: '', genre: '', ymin: '', ymax: '', open: false, ...store.get('filters', {}) };
 function match(s) {
   if (s.q < (+F.minq || 0)) return false;
   if (F.bmin && s.bpm < +F.bmin) return false; if (F.bmax && s.bpm > +F.bmax) return false;
   if (F.key && s.key !== F.key) return false; if (F.meter && s.meter !== F.meter) return false; if (F.feel && s.feel !== F.feel) return false;
   if (F.dmax && (s.dl == null || s.dl > +F.dmax)) return false; if (F.gmax && (s.gl == null || s.gl > +F.gmax)) return false;
+  if (F.genre && s.ge !== F.genre) return false; if (F.ymin && !(s.yr >= +F.ymin)) return false; if (F.ymax && !(s.yr <= +F.ymax)) return false;
   return true;
 }
 async function showSearch() {
@@ -108,11 +109,13 @@ async function showSearch() {
       <label>Feel${sel('f_feel', 'feel', ['straight', 'swing', 'light swing', 'shuffle'])}</label>
       <label>Quality<select id="f_minq"><option value="80" ${+F.minq === 80 ? 'selected' : ''}>A only</option><option value="60" ${+F.minq === 60 ? 'selected' : ''}>A and B</option><option value="0" ${+F.minq === 0 ? 'selected' : ''}>All (incl. C)</option></select></label>
       <label>Drums up to level${sel('f_dmax', 'dmax', [2, 4, 6, 8, 10])}</label><label>Guitar up to level${sel('f_gmax', 'gmax', [2, 4, 6, 8, 10])}</label>
+      <label>Genre${sel('f_genre', 'genre', GENRES)}</label>
+      <label>Year<span class="pair"><input id="f_ymin" inputmode="numeric" placeholder="from" value="${esc(F.ymin)}"><input id="f_ymax" inputmode="numeric" placeholder="to" value="${esc(F.ymax)}"></span></label>
     </div></div><div id="results"><div class="empty">Loading the song list…</div></div>`;
   let idx = null; const q = $('#q');
   $('#ftoggle').onclick = () => { F.open = !F.open; store.set('filters', F); $('#filters').hidden = !F.open; $('#ftoggle').classList.toggle('on', F.open); $('#ftoggle').setAttribute('aria-expanded', F.open); };
   const bind = (id, k) => { const el = $(id); el[el.tagName === 'SELECT' ? 'onchange' : 'oninput'] = () => { if (F[k] === el.value) return; F[k] = el.value; store.set('filters', F); render(); }; };
-  [['#q', 'q'], ['#f_bmin', 'bmin'], ['#f_bmax', 'bmax'], ['#f_key', 'key'], ['#f_meter', 'meter'], ['#f_feel', 'feel'], ['#f_minq', 'minq'], ['#f_dmax', 'dmax'], ['#f_gmax', 'gmax']].forEach(a => bind(...a));
+  [['#q', 'q'], ['#f_bmin', 'bmin'], ['#f_bmax', 'bmax'], ['#f_key', 'key'], ['#f_meter', 'meter'], ['#f_feel', 'feel'], ['#f_minq', 'minq'], ['#f_dmax', 'dmax'], ['#f_gmax', 'gmax'], ['#f_genre', 'genre'], ['#f_ymin', 'ymin'], ['#f_ymax', 'ymax']].forEach(a => bind(...a));
   done('search', 'Search');
   try { idx = await loadIndex(); } catch (e) { if ($('#results')) $('#results').innerHTML = `<div class="empty">Couldn't load the song list. You're probably offline and haven't opened Backline online yet.</div>`; return; }
   function render() {
@@ -135,7 +138,10 @@ async function showSearch() {
 // ---------- Browse: facet → value → songs (drill-down with crumbs, like DrumPath's Level → Strand → Lesson) ----------
 const KEYS = ['C', 'Cm', 'C#', 'C#m', 'Db', 'D', 'Dm', 'Eb', 'Ebm', 'E', 'Em', 'F', 'Fm', 'F#', 'F#m', 'G', 'Gm', 'Ab', 'G#m', 'A', 'Am', 'Bb', 'Bbm', 'B', 'Bm'];
 const BANDS = [[0, 70, 'under 70'], [70, 90, '70–89'], [90, 110, '90–109'], [110, 130, '110–129'], [130, 150, '130–149'], [150, 999, '150 and up']];
+const GENRES = ['Rock', 'Pop', 'Soul & R&B', 'Funk & Disco', 'Electronic', 'Hip hop', 'Metal', 'Punk', 'Blues', 'Jazz', 'Country', 'Folk', 'Reggae', 'Latin', 'Classical'];
 const FACETS = {
+  genre: { label: 'Genre', hint: 'rock, pop, soul …', of: s => s.ge },
+  decade: { label: 'Decade', hint: '60s, 70s, 80s …', of: s => s.yr ? Math.floor(s.yr / 10) * 10 + 's' : null },
   key: { label: 'Key', hint: 'C, G, Am …', of: s => s.key, fmt: fmtKey },
   tempo: { label: 'Tempo', hint: 'BPM bands', of: s => { const b = BANDS.find(([a, z]) => s.bpm >= a && s.bpm < z); return b ? b[2] : null; }, order: BANDS.map(b => b[2]) },
   meter: { label: 'Meter', hint: '4/4, 3/4, 6/8 …', of: s => s.meter },
@@ -157,6 +163,7 @@ async function showBrowse(facet, value) {
     const counts = {}; pool.forEach(s => { const v = Fc.of(s); if (v != null && v !== '') counts[v] = (counts[v] || 0) + 1; });
     let vals = Object.keys(counts);
     if (facet === 'key') vals = KEYS.filter(k => counts[k]).concat(vals.filter(v => !KEYS.includes(v)));
+    else if (facet === 'decade') vals.sort();
     else if (Fc.order) vals = Fc.order.filter(v => counts[v]);
     else if (facet === 'drums' || facet === 'guitar') vals.sort((a, b) => a - b);
     else if (facet === 'artist') vals.sort();
@@ -273,6 +280,8 @@ function renderSheet() {
     ${fact('BPM', bpm + (c.bpmSure ? '' : ' ≈'), band && '#browse=tempo&v=' + encodeURIComponent(band), 'Other songs at this tempo')}
     ${fact('Meter', esc(c.meter || A.meter), '#browse=meter&v=' + encodeURIComponent(c.meter || A.meter))}
     ${fact('Feel', esc(A.feel || '—'), A.feel && '#browse=feel&v=' + encodeURIComponent(A.feel))}
+    ${c.year ? fact('Year', c.year, '#browse=decade&v=' + Math.floor(c.year / 10) * 10 + 's', 'Songs from this decade') : ''}
+    ${c.genre ? fact('Genre', esc(c.genre), '#browse=genre&v=' + encodeURIComponent(c.genre), c.genreFrom === 'artist' ? 'From the artist’s usual genre' : 'From the Million Song Dataset') : ''}
     ${fact('Quality', `<span class="badge ${g}">${g}</span> <small class="mut">${A.quality.score}</small>`, null)}
     ${fact('Drums', (A.difficulty.drums ?? '—') + '<small class="mut">/10</small>', A.difficulty.drums != null && '#browse=drums&v=' + A.difficulty.drums)}
     ${fact('Guitar', (A.difficulty.guitar ?? '—') + '<small class="mut">/10</small>', A.difficulty.guitar != null && '#browse=guitar&v=' + A.difficulty.guitar)}
@@ -377,6 +386,7 @@ function updatePlayer() {
   $('#tempo').value = player.pct; $('#tempoval').textContent = `${player.pct}% · ${Math.round(player.tempo)} BPM`;
   for (const k of ['drums', 'bass', 'chords', 'click']) { const b = p.querySelector(`[data-mute="${k}"]`); const on = !player.mute[k]; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
   $('#countin').classList.toggle('on', player.countIn);
+  const kb = $('#kitbtn'); if (kb) { kb.hidden = !navigator.requestMIDIAccess; kb.classList.toggle('on', player.kit && !!player.midiOut); kb.setAttribute('aria-pressed', player.kit && !!player.midiOut); kb.title = player.midiOut ? 'Drums to ' + player.midiOut.name : 'Send the drums to a drum module (MIDI)'; }
   $('#loopinfo').textContent = SEL != null ? `Loop: ${(SONG.analysis.form[SEL].name || SONG.analysis.form[SEL].sec).replace('?', '')} ✕` : player.loop ? `Loop: bar ${player.loop[0] + 1} ✕` : 'Whole song';
   setPlayer(true);
 }
@@ -402,6 +412,7 @@ function wirePlayer() {
   $('#tempo').oninput = e => { player.pct = +e.target.value; updatePlayer(); };
   p.querySelectorAll('[data-mute]').forEach(b => b.onclick = () => { const k = b.dataset.mute; player.mute[k] = !player.mute[k]; if (player.ctx) player.setMute(k, player.mute[k]); updatePlayer(); });
   $('#countin').onclick = () => { player.countIn = !player.countIn; updatePlayer(); };
+  $('#kitbtn').onclick = async () => { if (!player.midiOut && !(await pickKit())) return; player.kit = !player.kit; if (!player.kit) player._midiPanic(); store.set('kitOn', player.kit); updatePlayer(); toast(player.kit ? 'Drums → ' + player.midiOut.name + '. The Drums button still turns the device’s own drums on or off.' : 'Kit off'); };
   $('#loopinfo').onclick = () => { if (SEL != null) selectItem(SEL, false); else if (player.loop) { player.loop = null; markLoop(); updatePlayer(); } };
 }
 
@@ -478,6 +489,26 @@ async function showFiles() {
   done('files', 'My files');
 }
 
+// ---------- Kit: Web MIDI out to a drum module (B6) ----------
+let MIDI = null;
+async function midiAccess() { if (MIDI) return MIDI; if (!navigator.requestMIDIAccess) return null; try { MIDI = await navigator.requestMIDIAccess(); MIDI.onstatechange = () => { if (player.midiOut && player.midiOut.state === 'disconnected') { player.midiOut = null; player.kit = false; updatePlayer(); toast('Drum module disconnected'); } }; return MIDI; } catch (e) { return null; } }
+/** ask for MIDI access and pick an output; remembers the device by name. Resolves true when one is chosen. */
+function pickKit() {
+  return new Promise(async res => {
+    const acc = await midiAccess(); if (!acc) { toast(navigator.requestMIDIAccess ? 'MIDI access was not allowed' : 'This browser has no Web MIDI (use Chrome)'); return res(false); }
+    const outs = [...acc.outputs.values()];
+    if (!outs.length) { toast('No MIDI device found. Connect the module over USB, then try again.'); return res(false); }
+    const want = store.get('kitName', null), hit = outs.find(o => o.name === want);
+    if (hit && outs.length === 1) { player.midiOut = hit; return res(true); }
+    let chosen = false;
+    const m = openSheet('Send drums to', `<p class="sub">Backline's drum part plays on the module's own sounds (channel 10, General MIDI notes). The device's own drums stay under the Drums button, so you can use either or both.</p>
+      ${list(outs.map((o, i) => `<div class="lrow" data-out="${i}" role="button" tabindex="0"><span class="t"><b>${esc(o.name)}</b><span>${esc(o.manufacturer || '')}</span></span>${o.name === want ? '<span class="chip">last used</span>' : ''}</div>`))}`, (d, close) => {
+      d.querySelectorAll('[data-out]').forEach(b => b.onclick = () => { player.midiOut = outs[+b.dataset.out]; store.set('kitName', player.midiOut.name); chosen = true; close(); res(true); });
+    });
+    new MutationObserver((_, ob) => { if (!document.body.contains(m)) { ob.disconnect(); if (!chosen) res(false); } }).observe(document.body, { childList: true });
+  });
+}
+
 // ---------- Settings ----------
 async function showSettings() {
   let est = null; try { est = navigator.storage && await navigator.storage.estimate(); } catch (e) { /* not supported */ }
@@ -487,12 +518,15 @@ async function showSettings() {
     <div class="card"><h3>Theme</h3><span class="seg" role="group" aria-label="Theme">${[['system', 'Follow device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button data-theme-set="${k}" class="${tm === k ? 'on' : ''}">${l}</button>`).join('')}</span></div>
     <div class="card" style="margin-top:12px"><h3>Search</h3><p class="mut" style="margin:0 0 8px">Which songs show in Search and Browse by default.</p>
       <span class="seg" role="group" aria-label="Quality">${[[80, 'A only'], [60, 'A and B'], [0, 'All']].map(([k, l]) => `<button data-q="${k}" class="${+F.minq === k ? 'on' : ''}">${l}</button>`).join('')}</span></div>
+    <div class="card" style="margin-top:12px"><h3>Drum module (MIDI out)</h3><p class="mut" style="margin:0 0 8px">${navigator.requestMIDIAccess ? `Send Backline's drums to your kit's module over USB. ${player.midiOut ? 'Now: <b>' + esc(player.midiOut.name) + '</b>.' : store.get('kitName', null) ? 'Last used: ' + esc(store.get('kitName', '')) + '.' : 'No module chosen yet.'} Turn it on and off with <b>Kit</b> on the player.` : 'This browser has no Web MIDI. Use Chrome on Android, Windows or Mac.'}</p>
+      ${navigator.requestMIDIAccess ? '<div class="tools" style="margin-top:0"><button id="pickkit">Choose module</button></div>' : ''}</div>
     <div class="card" style="margin-top:12px"><h3>Offline</h3><p class="mut" style="margin:0">${cached} song${cached === 1 ? '' : 's'} kept for offline use (every song you open is kept).${est ? ` Backline uses ${(est.usage / 1e6).toFixed(1)} MB on this device.` : ''}</p>
       <div class="tools"><button id="clearsongs" ${cached ? '' : 'disabled'}>Remove offline songs</button><button id="clearrecent">Clear recent songs</button></div></div>`;
   main().querySelectorAll('[data-theme-set]').forEach(b => b.onclick = () => { setTheme(b.dataset.themeSet); showSettings(); });
   main().querySelectorAll('[data-q]').forEach(b => b.onclick = () => { F.minq = +b.dataset.q; store.set('filters', F); showSettings(); });
   $('#clearsongs').onclick = async () => { if (!confirmInline($('#clearsongs'), 'Tap again to remove')) return; try { await caches.delete('bl-songs'); } catch (e) { /* ignore */ } toast('Offline songs removed'); showSettings(); };
   $('#clearrecent').onclick = () => { store.set('recent', []); toast('Recent songs cleared'); };
+  if ($('#pickkit')) $('#pickkit').onclick = async () => { if (await pickKit()) { toast('Module: ' + player.midiOut.name); showSettings(); } };
   done('settings', 'Settings');
 }
 

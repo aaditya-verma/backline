@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,9 +25,30 @@ jobs:
           mkdir -p "$RUNNER_TEMP/dl" "$RUNNER_TEMP/scratch" "$RUNNER_TEMP/out"
           curl -fL --retry 3 -o "$RUNNER_TEMP/dl/c.tar.gz" http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz
           tar -xzf "$RUNNER_TEMP/dl/c.tar.gz" -C "$RUNNER_TEMP/scratch" --no-same-owner --no-same-permissions
+      # B6: Million Song Dataset metadata (year, artist, title, genre terms) for every LMD-matched track. The 6.6 GB
+      # archive is read as a stream, nothing of it is kept but msd-meta.json, which is cached between builds.
+      - uses: actions/cache@v4
+        id: meta
+        with: { path: "${{ runner.temp }}/meta", key: msd-meta-v1-${{ hashFiles('pipeline/msd_meta.py') }} }
+      - uses: actions/setup-python@v5
+        if: steps.meta.outputs.cache-hit != 'true'
+        with: { python-version: '3.12' }
+      - name: Read the Million Song Dataset metadata (stream, ~15 min, only when not cached)
+        if: steps.meta.outputs.cache-hit != 'true'
+        run: |
+          pip install --quiet h5py
+          mkdir -p "$RUNNER_TEMP/meta"
+          curl -fsSL --retry 3 http://hog.ee.columbia.edu/craffel/lmd/lmd_matched_h5.tar.gz | python -I pipeline/msd_meta.py "$RUNNER_TEMP/meta/msd-meta.json"
+      - name: Download LMD-matched MIDI + match scores (scratch, outside the checkout)
+        run: |
+          mkdir -p "$RUNNER_TEMP/matched" "$RUNNER_TEMP/json"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/json/match_scores.json" http://hog.ee.columbia.edu/craffel/lmd/match_scores.json
+          curl -fsSL --retry 3 http://hog.ee.columbia.edu/craffel/lmd/lmd_matched.tar.gz | tar -xz -C "$RUNNER_TEMP/matched" --no-same-owner --no-same-permissions
+          du -sh "$RUNNER_TEMP/matched"; ls -la "$RUNNER_TEMP/meta"
       - name: Build the index
         run: |
-          BUILD_DATE=$(date -u +%F) node pipeline/build-index.mjs "$RUNNER_TEMP/scratch" "$RUNNER_TEMP/out" tools/check-songs.txt
+          export LMD_MATCHED="$RUNNER_TEMP/matched" LMD_SCORES="$RUNNER_TEMP/json/match_scores.json" MSD_META="$RUNNER_TEMP/meta/msd-meta.json"
+          BUILD_DATE=$(date -u +%F) node --max-old-space-size=6144 pipeline/build-index.mjs "$RUNNER_TEMP/scratch" "$RUNNER_TEMP/out" tools/check-songs.txt
           cat "$RUNNER_TEMP/out/data/v1/report/quality.md" >> "$GITHUB_STEP_SUMMARY"
           du -sh "$RUNNER_TEMP/out/data/v1"; find "$RUNNER_TEMP/out/data/v1" -type f | wc -l
       - name: Guard — derived JSON/Markdown/CSV only

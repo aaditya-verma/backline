@@ -11,6 +11,7 @@ export class Player {
     this.mute = { drums: false, bass: false, chords: false, click: true }; this.countIn = true;
     this.loop = null; this.playing = false; this.onBar = null; this.onStop = null; this.marks = [];
     this.fileMode = false; this.trackMute = new Set();   // own MIDI files: play the file's own notes; tracks can be muted one by one
+    this.midiOut = null; this.kit = false;                // Web MIDI out (B6): drums to a drum module, on/off apart from the device's own drums
   }
   _init() {
     if (this.ctx) return;
@@ -35,9 +36,11 @@ export class Player {
       if (m && this.onBar) this.onBar(m.bar, m.beat || 0); this.raf = requestAnimationFrame(raf); };
     this.raf = requestAnimationFrame(raf);
   }
+  /** silence the drum module at once (all notes off on channel 10) */
+  _midiPanic() { if (this.midiOut) try { this.midiOut.send([0xB9, 123, 0]); } catch (e) { /* unplugged */ } }
   stop(quiet) {
     if (this.timer) clearInterval(this.timer); this.timer = null; if (this.raf) cancelAnimationFrame(this.raf);
-    const was = this.playing; this.playing = false;
+    const was = this.playing; this.playing = false; if (this.kit) this._midiPanic();
     if (this.ctx && this.voices) for (const v of this.voices) try { v.stop(this.ctx.currentTime + 0.03); } catch (e) { /* already stopped */ }
     this.voices = [];
     if (was && !quiet && this.onStop) this.onStop();
@@ -58,7 +61,7 @@ export class Player {
     // drums
     if (this.fileMode && bar.notes) {
       for (const n of bar.notes) { if (this.trackMute.has(n.tr)) continue; const t = t0 + n.f * dur;
-        if (n.lane) { if (!this.mute.drums) this._drum(n.lane, n.v > 100 ? 'X' : n.v < 50 ? 'g' : n.open ? 'o' : 'x', t); }
+        if (n.lane) this._hit(n.lane, n.v > 100 ? 'X' : n.v < 50 ? 'g' : n.open ? 'o' : 'x', t);
         else this._note(n.n, t, Math.max(0.06, n.d * dur), n.v, n.prog); }
     }
     const g = this.fileMode ? null : bar.groove;
@@ -66,7 +69,7 @@ export class Player {
       const lanes = Object.entries(g.v), stepsAll = lanes.length ? lanes[0][1].length : 0, perBar = Math.max(1, Math.round(stepsAll / (g.bars || 1)));
       const off = (bar.grooveBar % (g.bars || 1)) * perBar, stepDur = dur / perBar, sw = (this.swing - 0.5) * 2 * stepDur;
       for (const [lane, str] of lanes) for (let s = 0; s < perBar; s++) { const ch = str[off + s]; if (!ch || ch === '.') continue;
-        const t = t0 + s * stepDur + (s % 2 ? sw : 0); this._drum(lane, ch, t); }
+        const t = t0 + s * stepDur + (s % 2 ? sw : 0); this._hit(lane, ch, t); }
     }
     // bass and pad, one per chord segment
     const segs = bar.chords || [], segDur = dur / Math.max(1, segs.length);
@@ -81,6 +84,14 @@ export class Player {
     s.connect(f); f.connect(this._env(t, 0.002, d, peak, bus)); s.start(t, Math.random() * 0.5); s.stop(t + d + 0.05); this._keep(s); }
   _tone(t, f0, f1, d, type, peak, bus) { const o = this.ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + d * 0.6);
     o.connect(this._env(t, 0.002, d, peak, bus)); o.start(t); o.stop(t + d + 0.05); this._keep(o); }
+  // one drum hit: the device's synth (silent when Drums is muted) and, when Kit is on, the drum module over MIDI
+  _hit(lane, ch, t) { if (!this.mute.drums) this._drum(lane, ch, t); if (this.kit && this.midiOut) this._midi(lane, ch, t); }
+  _midi(lane, ch, t) {
+    const note = { K: 36, S: ch === 'r' ? 37 : 38, HH: ch === 'o' ? 46 : 42, HP: 44, T1: 48, T2: 45, T3: 43, C: 49, R: 51 }[lane]; if (!note) return;
+    const vel = ch === 'X' ? 118 : ch === 'g' ? 42 : 92;
+    let at; try { const ts = this.ctx.getOutputTimestamp(); at = ts.performanceTime + (t - ts.contextTime) * 1000; } catch (e) { at = performance.now() + (t - this.ctx.currentTime) * 1000; }
+    try { this.midiOut.send([0x99, note, vel], at); this.midiOut.send([0x89, note, 0], at + 60); } catch (e) { /* device unplugged: drop the hit */ }
+  }
   _drum(lane, ch, t) {
     const B = this.bus.drums, v = ch === 'X' ? 1 : ch === 'g' ? 0.3 : 0.75;
     switch (lane) {
