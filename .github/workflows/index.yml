@@ -29,7 +29,9 @@ jobs:
       # archive is read as a stream, nothing of it is kept but msd-meta.json, which is cached between builds.
       - uses: actions/cache@v4
         id: meta
-        with: { path: "${{ runner.temp }}/meta", key: msd-meta-v1-${{ hashFiles('pipeline/msd_meta.py') }} }
+        with:
+          path: ${{ runner.temp }}/meta
+          key: msd-meta-v1-${{ hashFiles('pipeline/msd_meta.py') }}
       - uses: actions/setup-python@v5
         if: steps.meta.outputs.cache-hit != 'true'
         with: { python-version: '3.12' }
