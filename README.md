@@ -2,7 +2,7 @@
 
 Song engine + standalone jam app built on the Lakh MIDI Dataset. Search a song, see its form, chords and drum grooves, and play a synthesised backing track (drums, bass, chord pad) with loop, tempo and transpose.
 
-Live: https://aaditya-verma.github.io/backline/ · Status: **B5 built**: jam mode, setlists with share links, and your own MIDI files, on top of B4 (search, song sheet, backing-track player, offline). Design and navigation now follow DrumPath (owner request, 14 Nov 2026). B3 song index: 10,226 songs in `data/v1` on the `data` branch. Next: B7 hand-over to DrumPath (B6 is optional).
+Live: https://aaditya-verma.github.io/backline/ · Status: **B6 + B7 built** (14–15 Nov 2026): the index now has ~25,000 songs (clean_midi + LMD-matched) with year and genre from the Million Song Dataset; Kit sends the drums to a drum module over MIDI; the DrumPath hand-over note and index client are in `docs/` and `client/`. B4–B5 (app, jam mode, setlists, own files) are live; design and navigation follow DrumPath. Next: B8 Find MIDI.
 
 | Folder | What |
 |---|---|
@@ -108,4 +108,16 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 - **Drill-downs:** Browse › Key / Tempo / Meter / Feel / Drum level / Guitar level / Artist › value › songs, with crumbs; every fact on a song page (key, BPM, meter, feel, difficulty) opens the songs that share it; the artist name and crumbs open the artist page; a bar opens a sheet with its chords, Roman numerals and drum pattern, plus Play from here / Loop this bar / Loop the section; “Version 1 of 9” opens the versions table.
 - **Settings:** theme, default quality filter, offline songs and storage.
 - **Checks:** `node test/ui/nav.mjs <url>` (bottom bar vs tabs, More sheet, theme, Browse drill-down, Back restores list + scroll, tappable facts, bar sheet, crumbs): 15/15. Layout: 0 problems on 11 screens × 8 sizes × 2 text sizes.
+
+## B6: LMD-matched + Million Song Dataset, Kit (MIDI out)
+- `pipeline/msd_meta.py` streams `lmd_matched_h5.tar.gz` (6.6 GB) and keeps only artist, title, year and the top artist terms per track (`msd-meta.json`, cached on Actions). `pipeline/build-index.mjs` then (a) gives each clean_midi file its best Million Song Dataset match (`match_scores.json`), (b) adds the LMD-matched files: each joins the song with the same artist + title, or starts a new song named from the dataset, (c) counts duplicate transcriptions once, (d) sets **year** (earliest among the versions) and **genre** (15 groups from the artist terms by their last word, e.g. "country rock" → Rock; the artist's usual genre when the song has no match). clean_midi songs keep their B3 ids.
+- First B6 build (14 Nov 2026): 17,256 clean + 37,673 matched files → 25,363 songs (10,226 from clean_midi, 15,137 new), year for 10,821, genre for 22,830; 203 MB of JSON.
+- App: Genre and Year filters, Browse by Genre and Decade, Year and Genre facts on the song page.
+- **Kit:** Web MIDI out. The Kit button on the player sends the drum part to a drum module (channel 10, General MIDI notes, timestamped); the Drums button still controls the device's own drums, so either or both can play. Settings › Drum module picks the device. `node test/ui/kit.mjs <url>` (fake MIDI device): 9/9.
+
+## B7: DrumPath hand-over
+`docs/drumpath-integration.md` (also in the Drums project as `build/backline-drumpath-integration.md`) + `client/backline-index.js` (search, song, `toDrumPath()` using DrumPath's own rule table, deep links). `test/client.test.mjs` runs it against DrumPath's real `midi-analyse.js` 1.1.
+
+## Backing track sound (15 Nov 2026)
+Owner's friend heard "a gap after every chord" in Hotel California. The pad used to stop 4% early and fade, and was restarted on every bar. Now, following how arranger apps and voice-leading engines do it, a chord is held until it changes, each new chord fades in while the last fades out, the pad is voice-led (each note moves as little as possible to the next chord, Tymoczko's taxicab distance), and the bass is legato. `node test/ui/legato.mjs <url>`: the old player dropped to silence between chords (minimum level 0.0000); the new one never does (minimum 0.055 against a mean of 0.13).
 
