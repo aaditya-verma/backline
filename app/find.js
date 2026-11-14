@@ -11,6 +11,8 @@ const web = (site, t, a) => `https://duckduckgo.com/?q=${enc(`site:${site} ${q(t
 export const SOURCES = [
   { id: 'bitmidi', name: 'BitMidi', size: 'about 113,000 files', what: 'The largest free archive: pop, rock, film, games',
     how: 'site search', url: (t, a) => `https://bitmidi.com/search?q=${enc(q(t, a))}` },
+  { id: 'midisfree', name: 'MidisFree', size: 'about 90,000 files', what: 'Best free bet for Hindi film songs; 3 free downloads a day',
+    how: 'web search', url: (t, a) => web('midisfree.com', t, a) },
   { id: 'freemidi', name: 'FreeMidi.org', size: 'about 70,000 files', what: 'Pop, rock, hip-hop, metal, by artist',
     how: 'web search', url: (t, a) => web('freemidi.org', t, a) },
   { id: 'midiworld', name: 'MIDIWorld', size: 'about 25,000 files', what: 'Pop, rock, TV and film themes',
