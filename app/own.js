@@ -20,13 +20,14 @@ export function namesFrom(file) {
   const base = file.replace(/\.(mid|midi|kar)$/i, '').replace(/[_]+/g, ' ').trim(), m = base.split(/\s+[-–—]\s+/);
   return m.length >= 2 ? { artist: m[0].trim(), title: m.slice(1).join(' - ').trim() } : { artist: '', title: base };
 }
-/** analyse a File and save it; returns the stored record (without bytes) */
-export async function importFile(file) {
+/** analyse a File and save it; returns the stored record (without bytes). `names` ({title, artist}, from Find MIDI)
+ *  wins over names guessed from the file name, which downloaded files often get wrong ("hotel_california_2.mid"). */
+export async function importFile(file, names = null) {
   if (file.size > 4 * 1024 * 1024) throw new Error('That file is over 4 MB, which is too big for a song MIDI file.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const analysis = analyse(bytes);                                   // throws a readable MidiError for broken files
-  const id = 'own-' + await hashOf(bytes), n = namesFrom(file.name);
-  const rec = { id, file: file.name, title: n.title, artist: n.artist, added: Date.now(), bytes, analysis };
+  const id = 'own-' + await hashOf(bytes), n = names && names.title ? { title: names.title.trim(), artist: (names.artist || '').trim() } : namesFrom(file.name);
+  const rec = { id, file: file.name, title: n.title, artist: n.artist, added: Date.now(), bytes, analysis, ...(names && names.title ? { found: true } : {}) };
   await tx('readwrite', st => st.put(rec)); const { bytes: _, ...meta } = rec; return meta;
 }
 /** a song object shaped like an index song, so the sheet and player work unchanged */

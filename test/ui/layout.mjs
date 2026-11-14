@@ -3,7 +3,7 @@
 const pw = await import(process.env.PW || 'playwright'); const chromium = pw.chromium || pw.default.chromium;
 const base = process.argv[2] || 'http://localhost:8765/', shots = process.argv[3];
 const SIZES = [[640, 937], [1024, 553], [360, 780], [780, 360], [412, 915], [915, 412], [800, 1280], [1280, 800]];
-const PAGES = [['home', '#'], ['search', '#search', 'love'], ['browse', '#browse=key'], ['browse-songs', '#browse=key&v=Am'], ['artist', '#artist=Eagles'], ['settings', '#settings'], ['sheet', '#song=eagles--hotel-california'], ['jam', '#song=eagles--hotel-california'], ['sets', '#sets'], ['shared', '#set=eyJuIjoiRnJpZGF5IGphbSIsInMiOltbImVhZ2xlcy0taG90ZWwtY2FsaWZvcm5pYSIsODAsMF0sWyJndW5zLW4tcm9zZXMtLXN3ZWV0LWNoaWxkLW8tbWluZSIsMTAwLC0xXV19'], ['credits', '#credits']];
+const PAGES = [['home', '#'], ['search', '#search', 'love'], ['browse', '#browse=key'], ['browse-songs', '#browse=key&v=Am'], ['artist', '#artist=Eagles'], ['settings', '#settings'], ['sheet', '#song=eagles--hotel-california'], ['jam', '#song=eagles--hotel-california'], ['sets', '#sets'], ['shared', '#set=eyJuIjoiRnJpZGF5IGphbSIsInMiOltbImVhZ2xlcy0taG90ZWwtY2FsaWZvcm5pYSIsODAsMF0sWyJndW5zLW4tcm9zZXMtLXN3ZWV0LWNoaWxkLW8tbWluZSIsMTAwLC0xXV19'], ['credits', '#credits'], ['find', '#find&t=Hotel%20California&a=Eagles'], ['nofind', '#search', 'tum hi ho']];
 const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined });
 let problems = 0;
 for (const zoom of [1, 1.25]) for (const [w, h] of SIZES) {

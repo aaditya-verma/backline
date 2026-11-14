@@ -270,3 +270,14 @@ a.bbtn{color:var(--muted)}a.bbtn.on{color:var(--ink)}
 html{scroll-padding-top:120px;scroll-padding-bottom:calc(var(--player-h,0px) + 110px)}
 .bbtn{min-width:0}.bbtn .nic{width:min(56px,100%)}
 .seg button.on,.seg button.on:not(.pri){background:var(--ink);color:var(--L0);border-color:transparent}
+
+/* ---------- Find MIDI (B8) ---------- */
+.findcta { display: flex; align-items: center; gap: 12px; margin-top: 12px; text-decoration: none; color: inherit; }
+.findcta svg { flex: none; color: var(--accent); }
+.verdict .checks { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.verdict .checks li { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
+.verdict .checks li span { width: 1.2em; flex: none; text-align: center; font-weight: 700; }
+.verdict .checks li.ok span { color: var(--good, #2e9e5b); }
+.verdict .checks li.part span { color: var(--warn, #c98a12); }
+.verdict .checks li.no span { color: var(--bad, #d0473d); }
+.lrow[aria-disabled="true"] { opacity: .55; }

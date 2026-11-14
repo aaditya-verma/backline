@@ -10,7 +10,7 @@ await page.goto(base + '#search'); await page.waitForSelector('#q');
 await page.fill('#q', 'hotel california'); await page.waitForSelector('.lrow');
 const first = await page.textContent('.lrow .t b'); ok(/hotel california/i.test(first), 'search finds Hotel California: ' + first);
 if (out) await page.screenshot({ path: out + '/search.png', fullPage: false });
-await page.click('.lrow'); await page.waitForSelector('.cbar');
+await page.click('.lrow[href="#song=eagles--hotel-california"]'); await page.waitForSelector('.cbar');   // B6 added covers with the same title
 const nBars = await page.$$eval('.cbar', b => b.length), tl = await page.evaluate(() => window.__bl.tl.length);
 ok(nBars > 20 && nBars === tl, `sheet shows every bar (${nBars})`);
 ok(await page.$('#strip button') !== null, 'form strip rendered');

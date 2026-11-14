@@ -23,6 +23,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
   browse: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   sets: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>',
+  find: '<circle cx="10" cy="10" r="6.5"/><path d="M15 15l5.5 5.5"/><path d="M9 13V8l3.5-1v5"/><circle cx="8" cy="13" r="1.1"/><circle cx="11.5" cy="12" r="1.1"/>',
   files: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M10 17v-5l4-1v5"/><circle cx="9" cy="17" r="1.3"/><circle cx="13" cy="16" r="1.3"/>',
   songs: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
@@ -46,11 +47,12 @@ export const NAVI = {
   browse: ['Browse', 'By key, tempo, meter, feel, artist', '#browse'],
   sets: ['Setlists', 'Your lists, share with a friend', '#sets'],
   files: ['My files', 'Your own MIDI files, on this device', '#files'],
+  find: ['Find MIDI', 'Songs that aren\'t in Backline: free MIDI sites', '#find'],
   settings: ['Settings', 'Theme, offline songs, storage', '#settings'],
   credits: ['Credits', 'Lakh MIDI Dataset and how the data is made', '#credits'],
 };
 export const PRIMARY = ['home', 'search', 'browse', 'sets'];
-export const ALLNAV = ['home', 'search', 'browse', 'sets', 'files', 'settings', 'credits'];
+export const ALLNAV = ['home', 'search', 'browse', 'sets', 'files', 'find', 'settings', 'credits'];
 
 /* ---------- back stack: every navigation leaves a snapshot; Back restores the screen and its scroll ---------- */
 export const NAV = { stack: [], cur: null, backing: false };

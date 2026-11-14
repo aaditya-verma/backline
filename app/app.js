@@ -6,6 +6,7 @@ import { transposeChord, chordHTML, flatKey, pcOf, keyLabel, capoHint } from './
 import { Player } from './player.js';
 import * as Sets from './sets.js';
 import { listOwn, getOwn, deleteOwn, importFile, asSong, fileNotes } from './own.js';
+import { SOURCES, MAKE, verdict } from './find.js';
 import { $, esc, icon, buildShell, noteView, beforeRoute, restoreScroll, openSheet, closeSheets, toast, confirmInline, setTheme, themeMode } from './shell.js';
 
 const DATA = 'data/v1/';
@@ -33,7 +34,7 @@ async function loadSong(id) { const r = await fetch(`${DATA}songs/${id.slice(0, 
 
 // ---------- routing ----------
 // '' home · #search · #browse[=facet[&v=value]] · #artist=<name> · #song=<id>[&sec&tempo&transpose][&list=<set>&i=<n>]
-// #own=<id> · #files · #sets · #list=<id> · #set=<shared code> · #settings · #credits
+// #find[&t=<title>&a=<artist>] · #own=<id> · #files · #sets · #list=<id> · #set=<shared code> · #settings · #credits
 let FROM = null;
 function route() {
   beforeRoute(); if (JAM) closeJam(); closeSheets();
@@ -48,6 +49,7 @@ function route() {
   if (h.get('list')) return showSet(h.get('list'));
   if (h.has('artist')) return showArtist(h.get('artist'));
   if (raw.startsWith('browse')) return showBrowse(h.get('browse') || '', h.get('v'));
+  if (raw === 'find' || raw.startsWith('find&')) return showFind(h.get('t'), h.get('a'));
   const v = { search: showSearch, sets: showSets, files: showFiles, settings: showSettings, credits: showCredits }[raw];
   (v || showHome)();
 }
@@ -85,7 +87,7 @@ async function showHome() {
     ${rec.length ? `<h2>Recent</h2>${list(rec.slice(0, 8).map(s => songRow(s)))}` : ''}
     ${fav.length ? `<h2>Favourites</h2>${list(fav.map(s => songRow(s)))}` : ''}
     <h2>Browse</h2><div class="tiles">${Object.entries(FACETS).map(([k, f]) => `<a class="tile" href="#browse=${k}"><b>${f.label}</b><span>${f.hint}</span></a>`).join('')}</div>
-    ${!rec.length ? `<p class="sub" style="margin-top:16px">Lakh runs up to about 2015 and is mostly Western pop and rock. For anything else, open your own MIDI file from <a href="#files">My files</a>.</p>` : ''}`;
+    ${!rec.length ? `<p class="sub" style="margin-top:16px">Lakh runs up to about 2015 and is mostly Western pop and rock. For anything else, <a href="#find">find a MIDI file</a> on a free site and open it here.</p>` : ''}`;
   done('home', 'Home');
 }
 
@@ -130,7 +132,9 @@ async function showSearch() {
     const artists = [...new Set(hits.map(h => h[1].artist))].filter(a => words.every(w => norm(a).includes(w))).slice(0, 4);
     out.innerHTML = (artists.length ? `<div class="chips" style="margin:12px 0 0">${artists.map(a => `<a class="chip tag" href="#artist=${encodeURIComponent(a)}" style="text-decoration:none">${esc(a)} ›</a>`).join('')}</div>` : '') +
       (hits.length ? `<h2>${hits.length > 60 ? 'Top 60 of ' + hits.length : hits.length} songs</h2>${hidden ? `<p class="sub">${hidden} hidden by filters</p>` : ''}${list(hits.slice(0, 60).map(h => songRow(h[1])))}`
-        : `<div class="empty">No songs found${hidden ? ` (${hidden} hidden by filters: try Quality → All)` : ''}.</div>`);
+        : `<div class="empty">No songs found${hidden ? ` (${hidden} hidden by filters: try Quality → All)` : ''}.</div>
+          <a class="card tap findcta" href="${findHref(F.q)}">${icon('find')}<span><b>Find MIDI for “${esc(F.q)}”</b><br><span class="mut">Search free MIDI sites, then open the file here</span></span></a>`) +
+      (hits.length ? `<p class="sub" style="margin-top:14px">Not the song you meant, or a bad version? <a href="${findHref(F.q)}">Find MIDI for “${esc(F.q)}”</a></p>` : '');
   }
   render(); if (!matchMedia('(pointer:coarse)').matches) q.focus();
 }
@@ -287,6 +291,7 @@ function renderSheet() {
     ${fact('Guitar', (A.difficulty.guitar ?? '—') + '<small class="mut">/10</small>', A.difficulty.guitar != null && '#browse=guitar&v=' + A.difficulty.guitar)}
   </div>
   ${S.own ? `<div class="note">Your own file (${esc(S.file)}), analysed on this device. It stays here and is never uploaded.</div>` : ''}
+  ${S.own ? verdictCard(A) : ''}
   ${S.versions.length > 1 ? `<div class="note"><a href="#" id="versions">Version ${S.primary} of ${S.versions.length}</a> in Lakh (the best one that agrees with the others).${c.keyVotes ? ` ${c.keyAgree} of ${c.keyVotes} versions agree on the key.` : ''}</div>` : ''}
   ${S.transpose ? `<div class="warnbox">This file was written in ${esc(A.key)} ${esc(A.mode)}; the other versions say ${esc(c.key)} ${esc(c.mode)}, so the chords are shifted ${S.transpose > 0 ? '+' : ''}${S.transpose} to match.</div>` : ''}
   ${TRACKS.length ? `<div class="card tracks" style="margin-top:12px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Parts in your file</h3><span class="mut" style="font-size:13px">tap to mute or unmute</span></div><div class="tools" style="margin-top:8px">
@@ -299,7 +304,8 @@ function renderSheet() {
     <span class="stepper" aria-label="Transpose"><button id="tdn" aria-label="Transpose down">−</button><span id="tval">${SHIFT === 0 ? 'Original' : (SHIFT > 0 ? '+' : '') + SHIFT}</span><button id="tup" aria-label="Transpose up">+</button></span>
   </div>
   <div class="note">${capo.capo ? `Capo ${capo.capo}: play the shapes of ${keyLabel(((K.shownPc ?? 0) - capo.capo + 12) % 12, K.minor, flatKey(((K.shownPc ?? 0) - capo.capo + 12) % 12, K.minor))} (barre chords ${Math.round(capo.barre * 100)}% → ${Math.round(capo.barreWithCapo * 100)}%).` : allChords.length ? 'No capo needed.' : ''}
-    Section names with “?” and the chords are the engine's guesses${S.own ? ' from your file' : ' from a fan-made file'}. Tap a bar for details.</div>
+    Section names with “?” and the chords are the engine's guesses${S.own ? ' from your file' : ' from a fan-made file'}. Tap a bar for details.
+    <a href="${findHref(S.title, S.artist === 'My MIDI file' ? '' : S.artist)}">Find ${S.own ? 'another' : 'a different'} MIDI file for this song</a>.</div>
   <div class="formstrip" id="strip" role="list">${A.form.map((f, i) => `<button role="listitem" data-item="${i}" class="${SEL === i ? 'sel' : ''}" style="background:${SEC_COL(f.sec)};flex-grow:${f.bars};width:${Math.max(34, f.bars * 6)}px" title="${esc(f.name || f.sec)}: ${f.bars} bars — tap to loop">${esc((f.name || f.sec).replace('?', ''))}<small>${f.bars}</small></button>`).join('')}</div>
   <div class="view-${VIEW}" id="body" style="display:flex;flex-direction:column">
     <div class="chart" id="chart">${A.form.map((f, i) => itemHTML(f, i, K)).join('')}</div>
@@ -478,11 +484,58 @@ async function showShared(code) {
   done('sets', sh.name);
 }
 
+// ---------- Find MIDI (B8): free sites with the title and artist filled in; Backline never downloads from them ----------
+function findHref(t, a) { const p = new URLSearchParams(); if (t) p.set('t', t); if (a) p.set('a', a); const q = p.toString(); return '#find' + (q ? '&' + q : ''); }
+function verdictCard(A) {
+  const v = verdict(A), mark = { ok: '✓', part: '~', no: '✗' };
+  return `<div class="card verdict" style="margin-top:12px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">How good is this file?</h3><span><span class="badge ${v.grade}">${v.grade}</span> <small class="mut">${v.score}/100</small></span></div>
+    <ul class="checks">${v.rows.map(r => `<li class="${r.s}"><span aria-hidden="true">${mark[r.s]}</span>${esc(r.t)}</li>`).join('')}</ul>
+    <p class="mut" style="margin:6px 0 0">${esc(v.advice)}${v.grade !== 'A' ? ` <a href="${findHref(SONG && SONG.title, SONG && SONG.artist !== 'My MIDI file' ? SONG.artist : '')}">Find another file</a>.` : ''}</p></div>`;
+}
+async function showFind(t0, a0) {
+  const last = store.get('find', {}), T = t0 ?? last.t ?? '', A = a0 ?? (t0 != null ? '' : last.a ?? '');
+  main().innerHTML = `${crumbs([['My files', '#files'], ['Find MIDI', '']])}<h1>Find MIDI</h1>
+    <p class="sub">For songs that aren't in Backline, or a better version of one that is. These free sites have fan-made MIDI files: search, download the file there, then open it here. Backline grades it on this device.</p>
+    <div class="card"><div class="filters" style="display:grid">
+      <label>Song title<input id="ft" autocomplete="off" value="${esc(T)}" placeholder="e.g. Tum Hi Ho"></label>
+      <label>Artist<input id="fa" autocomplete="off" value="${esc(A)}" placeholder="optional"></label></div></div>
+    <div id="fhave"></div>
+    <h2>1 · Search a free site</h2><div class="list" id="fsrc"></div>
+    <h2>2 · Open the file you downloaded</h2>
+    <div class="card"><p class="mut" style="margin-top:0">It is analysed and graded here, named with the title and artist above, and stays on this device.</p>
+      <div class="tools" style="margin:0"><label class="btn pri" for="findfile" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${icon('plus', 18)} Open the downloaded file</label>
+      <input id="findfile" type="file" accept=".mid,.midi,.kar,audio/midi,audio/x-midi" hidden></div></div>
+    <h2>None anywhere?</h2><p class="sub">Make one with free software, then open it here:</p>
+    <div class="list">${MAKE.map(m => `<a class="lrow" href="${m.url}" target="_blank" rel="noopener noreferrer"><span class="t"><b>${esc(m.name)} ↗</b><span>${esc(m.what)}</span></span></a>`).join('')}</div>
+    <div class="note">Files on these sites are fan transcriptions for personal practice; quality varies a lot, so try two or three versions. Paid sites (such as musescore.com downloads) are left out. Backline only opens the search pages: it never downloads or keeps copies.</div>`;
+  const ti = $('#ft'), ai = $('#fa');
+  const paint = () => {
+    const t = ti.value.trim(), a = ai.value.trim(); store.set('find', { t, a });
+    $('#fsrc').innerHTML = SOURCES.map(s => t ? `<a class="lrow" href="${esc(s.url(t, a))}" target="_blank" rel="noopener noreferrer" data-src="${s.id}"><span class="t"><b>${esc(s.name)} ↗</b><span>${esc(s.what)} · ${esc(s.size)}${s.how === 'web search' ? ' · via a web search of the site' : ''}</span></span><span class="chev">${icon('chev', 18)}</span></a>`
+      : `<div class="lrow" aria-disabled="true"><span class="t"><b>${esc(s.name)}</b><span>${esc(s.what)}</span></span></div>`).join('');
+    haveIt(t, a);
+  };
+  let seq = 0;
+  async function haveIt(t, a) {
+    const my = ++seq, box = $('#fhave'); if (!t) { box.innerHTML = ''; return; }
+    let idx; try { idx = await loadIndex(); } catch (e) { return; }
+    if (my !== seq || !$('#fhave')) return;
+    const tw = norm(t).split(' ').filter(Boolean), aw = norm(a).split(' ').filter(Boolean);
+    const hits = idx.filter(s => { const st = norm(s.title), sa = norm(s.artist); return tw.every(w => st.includes(w)) && aw.every(w => sa.includes(w)); })
+      .sort((x, y) => (norm(y.title) === tw.join(' ')) - (norm(x.title) === tw.join(' ')) || y.q - x.q).slice(0, 3);
+    box.innerHTML = hits.length ? `<h2>Already in Backline</h2><p class="sub">Check these first; search the sites below if they're the wrong song or a weak file.</p>${list(hits.map(s => songRow(s)))}` : '';
+  }
+  ti.oninput = paint; ai.oninput = paint; paint();
+  $('#findfile').onchange = async e => { const f = e.target.files[0]; if (!f) return; toast('Reading ' + f.name + '…');
+    try { const r = await importFile(f, { title: ti.value.trim(), artist: ai.value.trim() }); location.hash = '#own=' + r.id; } catch (err) { toast(err.message || 'Could not read that file'); } };
+  done('find', 'Find MIDI'); if (!T && !matchMedia('(pointer:coarse)').matches) ti.focus();
+}
+
 // ---------- My files ----------
 async function showFiles() {
   const own = await listOwn();
   main().innerHTML = `<h1>My files</h1><p class="sub">Open a MIDI file from this device. Backline analyses it here; the file stays on this device and is never uploaded. Name it “Artist - Title.mid” and the names fill in.</p>
-    <div class="tools" style="margin-top:0"><label class="btn pri" for="ownfile" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${icon('plus', 18)} Open my MIDI file</label><input id="ownfile" type="file" accept=".mid,.midi,.kar,audio/midi,audio/x-midi" hidden></div>
+    <div class="tools" style="margin-top:0"><label class="btn pri" for="ownfile" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">${icon('plus', 18)} Open my MIDI file</label><input id="ownfile" type="file" accept=".mid,.midi,.kar,audio/midi,audio/x-midi" hidden><a class="btn" href="#find">${icon('find', 18)} Find MIDI online</a></div>
     ${own.length ? `<div style="margin-top:12px">${list(own.map(ownRow))}</div>` : '<div class="card" style="margin-top:12px"><b>No files yet.</b><p class="mut">Songs that aren\'t in Lakh (recent hits, Bollywood) work this way.</p></div>'}`;
   $('#ownfile').onchange = async e => { const f = e.target.files[0]; if (!f) return; toast('Reading ' + f.name + '…');
     try { const r = await importFile(f); location.hash = '#own=' + r.id; } catch (err) { toast(err.message || 'Could not read that file'); } };
