@@ -1,24 +1,25 @@
 # Backline song index — quality report
 
-Engine 0.2.1 · 17256 clean_midi files + 37673 LMD-matched · 54817 analysed · 112 rejected · 25396 songs (artist + title) · 33 dropped (no drums and no confident chords) · **25363 in the index** · 808 s
+Engine 0.2.1 · 17256 clean_midi files + 37673 LMD-matched · 54817 analysed · 112 rejected · 25396 songs (artist + title) · 33 dropped (no drums and no confident chords) · **25363 in the index** · 1024 s
 
 ## B6: LMD-matched + Million Song Dataset
 
 - Matched MIDI files not already in clean_midi: 37673 (4734 joined an existing song as extra versions, 15162 songs are new)
 - Songs in the index from clean_midi: 10226; new from LMD-matched: 15137
-- With a year: 10821; with a genre: 22830 (from the track: 19501, from the artist: 3329)
-- Genres: Rock 7248 · Pop 5142 · Electronic 2416 · Classical 1041 · Jazz 1006 · Metal 994 · Funk & Disco 816 · Soul & R&B 805 · Blues 745 · Hip hop 725 · Country 672 · Latin 414 · Folk 401 · Reggae 257 · Punk 148
+- With a year: 10795; with a genre: 22827 (from the track: 19476, from the artist: 3351)
+- Genres: Rock 7238 · Pop 5142 · Electronic 2414 · Classical 1045 · Jazz 1006 · Metal 993 · Funk & Disco 818 · Soul & R&B 805 · Blues 746 · Hip hop 727 · Country 674 · Latin 414 · Folk 402 · Reggae 256 · Punk 147
 
 ## Grades (primary version)
 
-- A: 21175
-- B: 872
-- C: 3316
+- A: 21177
+- B: 876
+- C: 3310
 
 ## Versions
 
-- Songs with 2+ versions: 10291; all versions agree on the key: 6972 (68%)
-- BPM sure (2+ versions within ±2 BPM): 8512
+- Duplicate files counted once: 7427
+- Songs with 2+ versions: 9120; all versions agree on the key: 5804 (64%)
+- BPM sure (2+ versions within ±2 BPM): 7085
 - Primary file transposed from the consensus key: 0
 
 ## Rejected files
@@ -30,21 +31,21 @@ Engine 0.2.1 · 17256 clean_midi files + 37673 LMD-matched · 54817 analysed · 
 
 ## Owner's hand-check songs: consensus key
 
-7 / 9 right (songs not in the index are listed but not counted)
+9 / 9 right (songs not in the index are listed but not counted)
 
 | Song | Answer | Consensus (versions agreeing) | |
 |---|---|---|---|
 | Creedence Clearwater Revival — Down on the Corner | C major | C major (6/7) | ✓ |
 | Eagles — Hotel California | B minor | B minor (13/16) | ✓ |
-| Guns N' Roses — Patience | G major | G major (3/3) | ✓ |
-| The Doors — Roadhouse Blues | E major | E major (5/5) | ✓ |
-| Led Zeppelin — Stairway to Heaven | A minor | A minor (28/28) | ✓ |
-| The Doors — Riders on the Storm | E minor | C major (6/14) | ✗ |
+| Guns N' Roses — Patience | G major | G major (2/2) | ✓ |
+| The Doors — Roadhouse Blues | E major | E major (4/4) | ✓ |
+| Led Zeppelin — Stairway to Heaven | A minor | A minor (21/21) | ✓ |
+| The Doors — Riders on the Storm | E minor | E minor (5/9) | ✓ |
 | AC/DC — Highway to Hell | A major | A major (3/3) | ✓ |
 | John Mayer — Gravity | G major | not in index () | ✗ |
 | John Mayer — Slow Dancing in a Burning Room | C# minor | not in index () | ✗ |
-| Guns N' Roses — Sweet Child O' Mine | D major | F# major (4/7) | ✗ |
-| The Beatles — Hey Jude | F major | F major (10/11) | ✓ |
+| Guns N' Roses — Sweet Child O' Mine | D major | Db major (3/6) | ✓ |
+| The Beatles — Hey Jude | F major | F major (8/9) | ✓ |
 
 ## Random sample for a spot-check (fixed seed)
 
