@@ -138,3 +138,34 @@ footer{max-width:1100px;margin:0 auto;padding:8px 16px 24px;color:var(--muted);f
   #player .r2{flex-wrap:nowrap;overflow-x:auto;margin-top:4px}#player .tempo{flex:0 0 200px}#player .play{width:44px;height:44px}#player .r1 .pos span{display:none}
   header{padding:6px 16px}
 }
+
+/* B5: dialogs, setlists, own-file parts, jam mode */
+.dlg{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+.dlg .card{width:100%;max-width:520px;max-height:85vh;overflow:auto;margin:0}
+@media (min-width:700px){.dlg{align-items:center}}
+button.wide{width:100%;justify-content:flex-start;white-space:normal;text-align:left}
+.setbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 10px;margin-top:10px}
+.setbar a{font-weight:700;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%}
+.setbar button{min-height:34px;padding:4px 12px;font-size:14px}.setbar button:first-of-type{margin-left:auto}
+.setsongs .song{gap:8px}.setsongs .t{text-decoration:none;color:inherit}
+.rowbtns{display:flex;gap:4px;flex:none}.rowbtns button{min-height:36px;width:36px;padding:0;justify-content:center}
+.tracks .tools button{min-height:34px;padding:4px 11px;font-size:14px}
+label.btn{cursor:pointer}
+#jam{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;padding:12px 16px calc(12px + env(safe-area-inset-bottom));gap:8px}
+#jam .jtop{display:flex;align-items:center;gap:12px}
+#jam .jsec{font:800 clamp(22px,5vh,40px)/1 var(--fd);text-transform:uppercase;letter-spacing:.03em;color:var(--accent);flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#jam .jbar{color:var(--muted);font-size:clamp(13px,2.4vh,18px);white-space:nowrap}
+#jam .jtop button{width:48px;height:48px;padding:0;justify-content:center;flex:none}
+#jam .jmain{flex:1;display:flex;align-items:center;justify-content:center;gap:4vw;min-height:0}
+#jam .jnow{font:800 clamp(64px,min(30vh,24vw),260px)/1 var(--fb);letter-spacing:-.02em;text-align:center;overflow-wrap:anywhere}
+#jam .jnow sup{font-size:.45em}
+#jam .jnext{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:clamp(14px,2.5vh,20px)}
+#jam .jnext b{font:700 clamp(28px,min(11vh,9vw),90px)/1 var(--fb);color:var(--muted)}
+#jam .jnext b sup{font-size:.5em}#jam .jnext small{font:500 13px var(--fm)}
+#jam .jbeats{display:flex;justify-content:center;gap:12px;min-height:22px}
+#jam .jbeats span{width:clamp(14px,3vh,22px);height:clamp(14px,3vh,22px);border-radius:50%;background:var(--surface2);border:1px solid var(--line)}
+#jam .jbeats span.one{border-color:var(--muted)}#jam .jbeats span.on{background:var(--accent);border-color:var(--accent)}
+#jam .jctl{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+#jam .jctl #jplay{width:64px;height:64px;border-radius:50%;justify-content:center;padding:0;font-size:24px}
+#jam .jctl .mono{min-width:90px;text-align:center}
+@media (orientation:portrait){#jam .jmain{flex-direction:column;gap:3vh}}

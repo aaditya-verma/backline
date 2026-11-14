@@ -2,7 +2,7 @@
 
 Song engine + standalone jam app built on the Lakh MIDI Dataset. Search a song, see its form, chords and drum grooves, and play a synthesised backing track (drums, bass, chord pad) with loop, tempo and transpose.
 
-Live: https://aaditya-verma.github.io/backline/ · Status: **B4 built**: the app is live (search, song sheet, backing-track player, offline). B3 song index: 10,226 songs in `data/v1` on the `data` branch. Next: B5 (jam mode, setlists, own MIDI file).
+Live: https://aaditya-verma.github.io/backline/ · Status: **B5 built**: jam mode, setlists with share links, and your own MIDI files, on top of B4 (search, song sheet, backing-track player, offline). B3 song index: 10,226 songs in `data/v1` on the `data` branch. Next: B7 hand-over to DrumPath (B6 is optional).
 
 | Folder | What |
 |---|---|
@@ -96,4 +96,10 @@ Verdict: Actions + mirror works; the laptop route is a fallback only.
 - **Deep links**: `#song=<id>&sec=B&tempo=80&transpose=-2`.
 
 **Checks:** `node test/ui/smoke.mjs <url>` (search → sheet → transpose → loop → play → deep link → credits, no page errors) and `node test/ui/layout.mjs <url>` (4 screens × 8 sizes × 100/125% text: nothing wider than the screen, nothing spilling, the player never covers the page end). Both need Playwright + Chrome (`PW`, `CHROME` env vars point at them). 12 Nov 2026: all pass, 0 layout problems.
+
+## B5 additions
+- **Jam mode** (song sheet → Jam mode): full screen, landscape where the phone allows; the current chord large, the next chord beside it, section name, bar and beat counter; tempo ±5%; the screen stays awake (Wake Lock).
+- **Setlists**: + Setlist on a song saves it with its tempo and transpose; reorder, remove, rename, Start → each song opens at its own settings with ‹ Prev / Next ›. **Share link**: `#set=<base64url(JSON {n, s:[[id, tempo, transpose]]})>`; the other phone previews it and saves it. Kept in the browser (localStorage); nothing is uploaded.
+- **Open my MIDI file**: analysed on the device with the same engine (0.2.1 adds `grid`, the bar → file position map); the file and its analysis are kept in this browser's IndexedDB and never uploaded. The song sheet lists the file's parts; **Playing the file** plays every part (melody and vocal line included) with simple synth sounds, each part can be muted; **Playing the backing** switches to the generated drums, bass and chords.
+- **Checks:** `node test/ui/b5.mjs <url> "<Artist - Title.mid>"` (own file → parts → plays the file → mute a part; setlist → reorder → Prev/Next with saved tempo → share link saved on a second phone; jam mode → beats move → closes). 14 Nov 2026: 17/17 pass, smoke 12/12, layout 0 problems on 7 screens × 8 sizes × 2 text sizes.
 

@@ -1,7 +1,7 @@
 // Backline service worker: the app shell is cached on install; the song list is network-first (falls back to the
 // cached copy offline); every song that has been opened is kept, so it plays offline later.
-const VER = 'bl-4.0.0';
-const SHELL = ['./', 'index.html', 'app/app.css', 'app/app.js', 'app/music.js', 'app/player.js', 'app/icon.svg', 'app/manifest.webmanifest'];
+const VER = 'bl-5.0.0';
+const SHELL = ['./', 'index.html', 'app/app.css', 'app/app.js', 'app/music.js', 'app/player.js', 'app/sets.js', 'app/own.js', 'engine/backline.js', 'app/icon.svg', 'app/manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VER + '-app').then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('bl-') && !k.startsWith(VER) && !k.endsWith('-songs')).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

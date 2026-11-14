@@ -10,13 +10,14 @@ export class Player {
     this.ctx = null; this.bars = []; this.bpm = 100; this.pct = 100; this.shift = 0; this.swing = 0.5;
     this.mute = { drums: false, bass: false, chords: false, click: true }; this.countIn = true;
     this.loop = null; this.playing = false; this.onBar = null; this.onStop = null; this.marks = [];
+    this.fileMode = false; this.trackMute = new Set();   // own MIDI files: play the file's own notes; tracks can be muted one by one
   }
   _init() {
     if (this.ctx) return;
     const C = window.AudioContext || window.webkitAudioContext; this.ctx = new C();
     const ctx = this.ctx;
     this.out = ctx.createDynamicsCompressor(); this.out.threshold.value = -14; this.out.ratio.value = 4; this.out.connect(ctx.destination);
-    this.bus = {}; for (const [k, g] of Object.entries({ drums: 0.9, bass: 0.55, chords: 0.22, click: 0.5 })) { const n = ctx.createGain(); n.gain.value = g; n.connect(this.out); this.bus[k] = n; }
+    this.bus = {}; for (const [k, g] of Object.entries({ drums: 0.9, bass: 0.55, chords: 0.22, click: 0.5, file: 0.5 })) { const n = ctx.createGain(); n.gain.value = g; n.connect(this.out); this.bus[k] = n; }
     const len = ctx.sampleRate; this.noise = ctx.createBuffer(1, len, ctx.sampleRate); const d = this.noise.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   }
   load({ bars, bpm, swing }) { this.stop(); this.bars = bars; this.bpm = bpm || 100; this.swing = swing || 0.5; }
@@ -28,10 +29,10 @@ export class Player {
     this.stop(true); this.playing = true; this.cur = fromBar; this.marks = [];
     this.next = this.ctx.currentTime + 0.08;
     if (this.countIn) { const beats = this.bars[fromBar] ? this.bars[fromBar].beats : 4, spb = 60 / this.tempo;
-      for (let b = 0; b < beats; b++) this._click(this.next + b * spb, b === 0, true); this.marks.push({ t: this.next, bar: -1 }); this.next += beats * spb; }
+      for (let b = 0; b < beats; b++) { this._click(this.next + b * spb, b === 0, true); this.marks.push({ t: this.next + b * spb, bar: -1, beat: b }); } this.next += beats * spb; }
     this.timer = setInterval(() => this._schedule(), TICK); this._schedule();
     const raf = () => { if (!this.playing) return; const t = this.ctx.currentTime; let m = null; while (this.marks.length && this.marks[0].t <= t) m = this.marks.shift();
-      if (m && this.onBar) this.onBar(m.bar); this.raf = requestAnimationFrame(raf); };
+      if (m && this.onBar) this.onBar(m.bar, m.beat || 0); this.raf = requestAnimationFrame(raf); };
     this.raf = requestAnimationFrame(raf);
   }
   stop(quiet) {
@@ -45,7 +46,8 @@ export class Player {
     while (this.playing && this.next < this.ctx.currentTime + LOOKAHEAD) {
       if (this.loop && (this.cur > this.loop[1] || this.cur < this.loop[0])) this.cur = this.loop[0];
       if (this.cur >= this.bars.length) { const end = this.next; setTimeout(() => this.stop(), Math.max(0, (end - this.ctx.currentTime) * 1000)); this.marks.push({ t: end, bar: -2 }); this.playing = false; clearInterval(this.timer); this.timer = null; return; }
-      this._bar(this.bars[this.cur], this.next); this.marks.push({ t: this.next, bar: this.cur });
+      this._bar(this.bars[this.cur], this.next);
+      const spb = 60 / this.tempo; for (let k = 0; k < this.bars[this.cur].beats; k++) this.marks.push({ t: this.next + k * spb, bar: this.cur, beat: k });
       this.next += this.bars[this.cur].beats * 60 / this.tempo; this.cur++;
     }
   }
@@ -54,7 +56,12 @@ export class Player {
     // click on every beat
     for (let b = 0; b < bar.beats; b++) this._click(t0 + b * spb, b === 0, false);
     // drums
-    const g = bar.groove;
+    if (this.fileMode && bar.notes) {
+      for (const n of bar.notes) { if (this.trackMute.has(n.tr)) continue; const t = t0 + n.f * dur;
+        if (n.lane) { if (!this.mute.drums) this._drum(n.lane, n.v > 100 ? 'X' : n.v < 50 ? 'g' : n.open ? 'o' : 'x', t); }
+        else this._note(n.n, t, Math.max(0.06, n.d * dur), n.v, n.prog); }
+    }
+    const g = this.fileMode ? null : bar.groove;
     if (g && g.v) {
       const lanes = Object.entries(g.v), stepsAll = lanes.length ? lanes[0][1].length : 0, perBar = Math.max(1, Math.round(stepsAll / (g.bars || 1)));
       const off = (bar.grooveBar % (g.bars || 1)) * perBar, stepDur = dur / perBar, sw = (this.swing - 0.5) * 2 * stepDur;
@@ -94,6 +101,15 @@ export class Player {
   _bass(n, t, d) { const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(n); const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(220, t + d);
     const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.01); g.gain.setValueAtTime(0.9, t + d * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
     o.connect(f); f.connect(g); g.connect(this.bus.bass); o.start(t); o.stop(t + d + 0.05); this._keep(o); }
+  // one note of the user's own file: a plain synth voice by General MIDI family (bass, keys, strings/pads, leads)
+  _note(n, t, d, vel, prog) {
+    const fam = prog >> 3, o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+    o.type = fam === 4 ? 'sawtooth' : fam === 6 || fam === 11 ? 'sawtooth' : fam === 10 || fam === 9 ? 'square' : 'triangle';
+    o.frequency.value = midiHz(n); f.type = 'lowpass'; f.frequency.value = fam === 4 ? 700 : 2400;
+    const pk = 0.08 + 0.22 * (vel / 127), sus = fam === 0 || fam === 3 ? 0.35 : 0.8, rel = Math.min(0.25, d * 0.3);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(pk, t + 0.008); g.gain.exponentialRampToValueAtTime(pk * sus + 0.0001, t + Math.min(d, 0.3));
+    g.gain.setValueAtTime(pk * sus + 0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.0001, t + d + rel);
+    o.connect(f); f.connect(g); g.connect(this.bus.file); o.start(t); o.stop(t + d + rel + 0.05); this._keep(o); }
   _pad(notes, t, d) { const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.04); g.gain.setValueAtTime(0.5, t + Math.max(0.05, d - 0.08)); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
     const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800; f.connect(g); g.connect(this.bus.chords);
     for (const n of notes) for (const det of [-6, 6]) { const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(n); o.detune.value = det; o.connect(f); o.start(t); o.stop(t + d + 0.05); this._keep(o); } }

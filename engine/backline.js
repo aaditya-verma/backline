@@ -3,13 +3,14 @@
    tools/build-engine.mjs into engine/dist/ for DrumPath (vendor/backline-engine.<ver>.js).
 
    B1: safe parser, drum lanes, grid/swing, bar clustering, fills, sections, drum features.
+   B5 (0.2.1): adds `grid` (bar → file position) to the output; nothing else changes.
    B2 (0.2.0): chords per half-bar, key (key signature or Krumhansl–Kessler), Roman numerals, named form, guitar difficulty, quality grade.
    The drum analysis is moved from DrumPath src/js/midi-analyse.js 1.1 and must give identical results
    (test/equivalence.test.mjs, tools/calibrate-groove.mjs).
 
    Stays in DrumPath (not here): feature → lesson-tag rule table and lesson-pattern similarity. */
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 
 /* ---------- 1. Parser ---------- */
 // Limits protect against corrupt or hostile files (brief §1.8). The pipeline also sets a wall-clock limit.
@@ -638,6 +639,7 @@ export function analyse(buf, opts = {}) {
     meter: sig0.num + '/' + sig0.den, meterChanges: meters.length > 1, meters,
     durS: Math.round(durS * 10) / 10,
     bars: songBars,
+    grid: { startBar, barQ },   // 0.2.1: song bar 0 starts at quarter startBar × barQ of the file (lets an app play the file's own notes in time with the bars)
     feel: df ? (df.halfTime ? 'half-time' : df.shuffle ? 'shuffle' : df.feel) : null,
     swing: df ? df.swing : null,
     key: H.key, mode: H.mode, keyConf: H.keyConf, keySource: H.keySource,
