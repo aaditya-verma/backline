@@ -52,3 +52,21 @@ export function chordHTML(s) {
   return r + (m[2] ? '<sup>' + m[2] + '</sup>' : '') + (m[3] ? m[3].replace('#', '♯').replace(/b$/, '♭') : '');
 }
 export function keyLabel(keyPc, minor, flats) { return noteName(keyPc, flats).replace('#', '♯').replace('b', '♭') + (minor ? ' minor' : ' major'); }
+
+/** smooth voice leading (Tymoczko's "taxicab" idea): of all inversions and octave placements of the chord's tones,
+ *  take the one whose notes move least from the previous chord's notes; keeps the pad around E3–D5.
+ *  prev = MIDI notes of the last chord (or null), name = chord name, n = transpose. Returns MIDI notes, low to high. */
+export function voiceLead(prev, name, n = 0) {
+  const c = parseChord(name); if (!c) return null;
+  const pcs = (TONES[c.suf] || TONES['']).map(i => mod(c.root + n + i));
+  const cands = [];
+  for (let k = 0; k < pcs.length; k++) for (const base of [48, 52, 55, 57, 60]) {      // each inversion, a few registers
+    const order = pcs.slice(k).concat(pcs.slice(0, k)); let last = base - 1; const notes = [];
+    for (const pc of order) { let x = last + 1; while (mod(x) !== pc) x++; notes.push(x); last = x; }
+    if (notes[0] >= 50 && notes[notes.length - 1] <= 76) cands.push(notes);
+  }
+  if (!cands.length) return voicing(name, n).pad;
+  if (!prev || !prev.length) return cands.reduce((a, b) => Math.abs(a[0] + a.at(-1) - 118) <= Math.abs(b[0] + b.at(-1) - 118) ? a : b);   // first chord: centred near C4
+  const dist = (a, b) => a.reduce((s, x) => s + Math.min(...b.map(y => Math.abs(x - y))), 0) + b.reduce((s, y) => s + Math.min(...a.map(x => Math.abs(x - y))), 0);
+  return cands.reduce((best, x) => dist(prev, x) < dist(prev, best) ? x : best);
+}

@@ -1,6 +1,6 @@
 // Backline — backing-track player. Everything is synthesised with Web Audio (no samples, nothing to license).
 // The song is a list of bars: {chords:[name per segment], groove:{sub,bars,v:{lane:'x..'}}|null, grooveBar, beats}.
-import { voicing } from './music.js';
+import { voicing, voiceLead } from './music.js';
 
 const LOOKAHEAD = 0.12, TICK = 25;
 const midiHz = n => 440 * Math.pow(2, (n - 69) / 12);
@@ -27,7 +27,7 @@ export class Player {
   async play(fromBar = 0) {
     this._init(); if (this.ctx.state !== 'running') await this.ctx.resume();
     Object.keys(this.mute).forEach(k => this.setMute(k, this.mute[k]));
-    this.stop(true); this.playing = true; this.cur = fromBar; this.marks = [];
+    this.stop(true); this.playing = true; this.cur = fromBar; this.marks = []; this.held = null; this.padNotes = null;
     this.next = this.ctx.currentTime + 0.08;
     if (this.countIn) { const beats = this.bars[fromBar] ? this.bars[fromBar].beats : 4, spb = 60 / this.tempo;
       for (let b = 0; b < beats; b++) { this._click(this.next + b * spb, b === 0, true); this.marks.push({ t: this.next + b * spb, bar: -1, beat: b }); } this.next += beats * spb; }
@@ -47,7 +47,7 @@ export class Player {
   }
   _schedule() {
     while (this.playing && this.next < this.ctx.currentTime + LOOKAHEAD) {
-      if (this.loop && (this.cur > this.loop[1] || this.cur < this.loop[0])) this.cur = this.loop[0];
+      if (this.loop && (this.cur > this.loop[1] || this.cur < this.loop[0])) { this.cur = this.loop[0]; this.held = null; }   // a loop restarts its first chord
       if (this.cur >= this.bars.length) { const end = this.next; setTimeout(() => this.stop(), Math.max(0, (end - this.ctx.currentTime) * 1000)); this.marks.push({ t: end, bar: -2 }); this.playing = false; clearInterval(this.timer); this.timer = null; return; }
       this._bar(this.bars[this.cur], this.next);
       const spb = 60 / this.tempo; for (let k = 0; k < this.bars[this.cur].beats; k++) this.marks.push({ t: this.next + k * spb, bar: this.cur, beat: k });
@@ -71,12 +71,24 @@ export class Player {
       for (const [lane, str] of lanes) for (let s = 0; s < perBar; s++) { const ch = str[off + s]; if (!ch || ch === '.') continue;
         const t = t0 + s * stepDur + (s % 2 ? sw : 0); this._hit(lane, ch, t); }
     }
-    // bass and pad, one per chord segment
+    // bass and pad, per chord segment. Owner's friend heard "a gap after every chord" (14 Nov): the pad used to stop
+    // 4% early and fade, and was restarted on every bar even when the chord didn't change. Now a chord is held until
+    // it changes (a repeated chord is not re-struck), each new chord fades in while the last one fades out (no
+    // silence between them), the pad is voice-led (each note moves as little as possible), and the bass is legato.
     const segs = bar.chords || [], segDur = dur / Math.max(1, segs.length);
-    segs.forEach((c, i) => { const v = voicing(c, this.shift); if (!v) return; const t = t0 + i * segDur;
-      // bass: root on every beat of the segment, short and round
-      const beats = Math.max(1, Math.round(segDur / spb)); for (let b = 0; b < beats; b++) this._bass(v.bass, t + b * spb, spb * 0.85);
-      this._pad(v.pad, t, segDur * 0.96); });
+    segs.forEach((c, i) => { const t = t0 + i * segDur, v = voicing(c, this.shift);
+      if (!v) { this.held = null; return; }                       // no chord (N.C.): silence, the next chord starts fresh
+      const beats = Math.max(1, Math.round(segDur / spb)); for (let b = 0; b < beats; b++) this._bass(v.bass, t + b * spb, spb);
+      if (c === this.held) return;                                // same chord as before: still sounding
+      this.held = c; const notes = voiceLead(this.padNotes, c, this.shift); this.padNotes = notes;
+      this._pad(notes, t, this._runLength(this.cur, i, c)); });
+  }
+  /** how long chord c lasts from segment i of bar b: until the chord changes, the loop ends or the song ends (seconds) */
+  _runLength(b, i, c) {
+    const spb = 60 / this.tempo, end = this.loop ? this.loop[1] : this.bars.length - 1; let t = 0;
+    for (let k = b; k <= end; k++) { const B = this.bars[k], segs = B.chords && B.chords.length ? B.chords : ['N'], sd = B.beats * spb / segs.length;
+      for (let j = k === b ? i : 0; j < segs.length; j++) { if (segs[j] !== c) return t; t += sd; } }
+    return t;
   }
   _keep(n) { this.voices.push(n); if (this.voices.length > 400) this.voices.splice(0, 200); return n; }
   _env(t, a, d, peak, bus) { const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); g.connect(bus); return g; }
@@ -109,9 +121,10 @@ export class Player {
     }
   }
   _click(t, accent, count) { const o = this.ctx.createOscillator(); o.frequency.value = accent ? 1600 : 1100; o.connect(this._env(t, 0.001, 0.05, count ? 0.6 : 0.5, count ? this.out : this.bus.click)); o.start(t); o.stop(t + 0.08); this._keep(o); }
-  _bass(n, t, d) { const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(n); const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(220, t + d);
-    const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.01); g.gain.setValueAtTime(0.9, t + d * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-    o.connect(f); f.connect(g); g.connect(this.bus.bass); o.start(t); o.stop(t + d + 0.05); this._keep(o); }
+  // bass: one note per beat, played legato (each note runs into the next), with a gentle pluck-like filter fall
+  _bass(n, t, d) { const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(n); const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(800, t); f.frequency.exponentialRampToValueAtTime(260, t + Math.min(d, 0.35));
+    const end = t + d + 0.03, g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.85, t + 0.012); g.gain.exponentialRampToValueAtTime(0.6, t + d * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    o.connect(f); f.connect(g); g.connect(this.bus.bass); o.start(t); o.stop(end + 0.02); this._keep(o); }
   // one note of the user's own file: a plain synth voice by General MIDI family (bass, keys, strings/pads, leads)
   _note(n, t, d, vel, prog) {
     const fam = prog >> 3, o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
@@ -121,7 +134,9 @@ export class Player {
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(pk, t + 0.008); g.gain.exponentialRampToValueAtTime(pk * sus + 0.0001, t + Math.min(d, 0.3));
     g.gain.setValueAtTime(pk * sus + 0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.0001, t + d + rel);
     o.connect(f); f.connect(g); g.connect(this.bus.file); o.start(t); o.stop(t + d + rel + 0.05); this._keep(o); }
-  _pad(notes, t, d) { const g = this.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.04); g.gain.setValueAtTime(0.5, t + Math.max(0.05, d - 0.08)); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  // pad: held for the whole chord; fades in over 60 ms and keeps sounding 350 ms into the next chord, so changes crossfade
+  _pad(notes, t, d) { const REL = 0.35, end = t + Math.max(0.1, d) + REL, g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.06); g.gain.setValueAtTime(0.5, t + Math.max(0.07, d)); g.gain.exponentialRampToValueAtTime(0.0001, end); d = end - t;
     const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800; f.connect(g); g.connect(this.bus.chords);
     for (const n of notes) for (const det of [-6, 6]) { const o = this.ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(n); o.detune.value = det; o.connect(f); o.start(t); o.stop(t + d + 0.05); this._keep(o); } }
 }

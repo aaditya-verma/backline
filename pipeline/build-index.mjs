@@ -92,11 +92,14 @@ const secs = Math.round((Date.now() - t0) / 1000);
 
 // ---------- 3. one song per group: consensus values, primary version, version summaries ----------
 const usable = a => !!a.drums || (a.key && a.chords && a.chords.share >= 0.2 && a.chords.fit >= 0.75);
-const songs = []; const ids = new Set(); let dropped = 0;
+const songs = []; const ids = new Set(); let dropped = 0, dupes = 0;
 // clean_midi songs first, so their published ids (B3) never change; then the songs new in B6
 const order = [...groups].sort((x, y) => (x[1].clean === y[1].clean ? 0 : x[1].clean ? -1 : 1) || (x[0] < y[0] ? -1 : 1));
 for (const [, g] of order) {
-  const vs = g.versions;
+  // the same transcription often exists as several files (re-saved, renamed, matched to several recordings): count it once,
+  // or copies out-vote the other versions (Riders on the Storm: four identical "C major" files against five E minor ones)
+  const seen = new Set(), vs = g.versions.filter(a => { const f = [a.bars, Math.round(a.bpm || 0), a.key, a.mode, a.meter, JSON.stringify(a.chords ? a.chords.perBar : null)].join('|');
+    if (seen.has(f)) { dupes++; return false; } seen.add(f); return true; });
   if (!vs.some(usable)) { dropped++; continue; }
   // tempo: fan files are often written at double or half speed (Hotel California at 74 and at 148). Fold every
   // version's BPM by ×2 / ÷2 onto the reading most versions support, then take the median of the folded values.
@@ -128,7 +131,7 @@ for (const [, g] of order) {
   // most common genre among the matched versions, else the artist's usual genre across the whole dataset
   const ms = vs.map(a => a.__msd).filter(Boolean), years = ms.map(m => m.year).filter(Boolean);
   const gs = ms.map(m => m.genre).filter(Boolean), genre = gs.length ? vote(gs) : ARTIST_GENRE.get(norm(g.artist)) || null;
-  const terms = ms.length ? ms[0].terms.slice(0, 3) : [];
+  const tm = ms.find(m => m.genre === genre) || ms[0], terms = tm ? tm.terms.slice(0, 3) : [];   // terms that agree with the chosen genre
   const song = { id, title: g.title, artist: g.artist, engine: VERSION, source: g.clean ? 'clean_midi' : 'lmd_matched',
     consensus: { bpm, bpmSure, meter, key: key ? key.split(' ')[0] : null, mode: key ? key.split(' ')[1] : null, keyAgree, keyVotes: keyed.length,
       year: years.length ? Math.min(...years) : null, genre, genreFrom: gs.length ? 'track' : genre ? 'artist' : null, terms },
@@ -172,7 +175,7 @@ const md = [`# Backline song index — quality report`, '', `Engine ${VERSION} �
     `- With a year: ${songs.filter(x => x.consensus.year).length}; with a genre: ${songs.filter(x => x.consensus.genre).length} (from the track: ${songs.filter(x => x.consensus.genreFrom === 'track').length}, from the artist: ${songs.filter(x => x.consensus.genreFrom === 'artist').length})`,
     `- Genres: ${Object.entries(tally(songs.filter(x => x.consensus.genre), x => x.consensus.genre)).sort((a, b) => b[1] - a[1]).map(([g, n]) => g + ' ' + n).join(' · ')}`, ''] : []),
   `## Grades (primary version)`, '', ...['A', 'B', 'C'].map(g => `- ${g}: ${grades[g] || 0}`), '',
-  `## Versions`, '', `- Songs with 2+ versions: ${multi.length}; all versions agree on the key: ${agreeAll} (${Math.round(100 * agreeAll / Math.max(1, multi.length))}%)`,
+  `## Versions`, '', `- Duplicate files counted once: ${dupes}`, `- Songs with 2+ versions: ${multi.length}; all versions agree on the key: ${agreeAll} (${Math.round(100 * agreeAll / Math.max(1, multi.length))}%)`,
   `- BPM sure (2+ versions within ±2 BPM): ${songs.filter(s => s.consensus.bpmSure).length}`,
   `- Primary file transposed from the consensus key: ${songs.filter(s => s.transpose).length}`, '',
   `## Rejected files`, '', ...Object.entries(errBy).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`), '',
