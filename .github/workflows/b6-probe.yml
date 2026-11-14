@@ -1,0 +1,21 @@
+name: B6 probe
+on: { workflow_dispatch: {}, push: { branches: [main], paths: [pipeline/b6-probe.mjs, .github/workflows/b6-probe.yml] } }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Sizes of the B6 downloads (headers only)
+        run: |
+          for f in lmd_matched.tar.gz lmd_matched_h5.tar.gz match_scores.json md5_to_paths.json; do
+            printf "%s " $f; curl -sIL http://hog.ee.columbia.edu/craffel/lmd/$f | grep -i '^content-length' | tail -1; done | tee -a $GITHUB_STEP_SUMMARY
+      - name: Download small files + clean_midi into scratch
+        run: |
+          mkdir -p "$RUNNER_TEMP/s/clean" "$RUNNER_TEMP/s/json"
+          curl -fsSL -o "$RUNNER_TEMP/s/json/match_scores.json" http://hog.ee.columbia.edu/craffel/lmd/match_scores.json
+          curl -fsSL -o "$RUNNER_TEMP/s/json/md5_to_paths.json" http://hog.ee.columbia.edu/craffel/lmd/md5_to_paths.json
+          curl -fsSL http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz | tar -xz -C "$RUNNER_TEMP/s/clean" --no-same-owner --no-same-permissions
+      - name: Match clean_midi to the Million Song Dataset
+        run: node pipeline/b6-probe.mjs "$RUNNER_TEMP/s/clean" "$RUNNER_TEMP/s/json/match_scores.json" "$RUNNER_TEMP/s/json/md5_to_paths.json" | tee -a $GITHUB_STEP_SUMMARY
